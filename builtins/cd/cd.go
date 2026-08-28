@@ -1,11 +1,12 @@
-// Package cd implements the `cd` shell built-in. Real bash
-// semantics: change the working directory; mvdan/sh ships its own `cd`
-// that mutates the runner's Dir. Our registration is reachable via
-// /bin/cd and CANNOT mutate the runner's Dir (it has no back-channel),
-// so it functions as a path-validation + diagnostic stub: it resolves
-// the target via c.FS.Stat and emits a clean error if missing.
+// Package cd implements the `cd` shell built-in.
 //
-// Documented shadow in DECISIONS.md (Phase 11).
+// mvdan/sh ships its own `cd`, but it is unusable here: after the stat
+// succeeds it calls unix.Access(path, X_OK) against the HOST
+// filesystem, which no virtual path satisfies, so every cd inside the
+// sandbox fails with "permission denied". gobash therefore intercepts
+// `cd` in the CallHandler (see bash.go) and routes it here, where the
+// target is resolved against the VFS and applied through
+// Context.SetCwd.
 package cd
 
 import (
@@ -75,8 +76,14 @@ done:
 			return builtinutil.Errorf(c.Stderr, "cd", 1, "%s: not a directory", args[len(args)-1])
 		}
 	}
-	// Best-effort mutation: c.Env update is in-place but not
-	// propagated to mvdan/sh's runner.
+	// Apply the move. Without the back-channel there is no interpreter
+	// to move, so report that rather than silently succeeding.
+	if c.SetCwd == nil {
+		return builtinutil.Errorf(c.Stderr, "cd", 1, "cannot change directory in this context")
+	}
+	if err := c.SetCwd(dir); err != nil {
+		return builtinutil.Errorf(c.Stderr, "cd", 1, "%v", err)
+	}
 	if c.Env != nil {
 		c.Env["OLDPWD"] = c.Cwd
 		c.Env["PWD"] = dir

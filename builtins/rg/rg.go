@@ -6,6 +6,7 @@
 package rg
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/base64"
@@ -77,13 +78,30 @@ type opts struct {
 	globs        []string
 	hidden       bool
 	asJSON       bool
+	// heading selects ripgrep's grouped layout (filename on its own
+	// line, then `line:text`, then a blank separator). Real ripgrep
+	// only uses it when stdout is a terminal; there is never a
+	// terminal here, so the default is the pipe-friendly
+	// `file:line:text` form and --heading opts back in.
+	heading    bool
+	headingSet bool
+	// withFilename / noFilename mirror rg's -H / -I. When neither is
+	// given the prefix is shown only if more than one file is searched.
+	withFilename    bool
+	withFilenameSet bool
+	noFilename      bool
 }
 
 // New returns the rg command.
 func New() command.Command { return command.Define("rg", run) }
 
 func run(_ context.Context, args []string, c *command.Context) command.Result {
-	o := opts{lineNumber: true}
+	// Line numbers are on only with -n. Real ripgrep enables them by
+	// default when stdout is a terminal and suppresses them otherwise;
+	// there is no terminal here, so the piped behavior is the default
+	// and -n opts in. (Verified against ripgrep: `rg pat f`, `rg pat d/`
+	// and `... | rg pat` all print no line numbers when piped.)
+	o := opts{}
 	var paths []string
 	i := 1
 	for ; i < len(args); i++ {
@@ -160,6 +178,14 @@ func run(_ context.Context, args []string, c *command.Context) command.Result {
 			// we never honor .gitignore — no-op.
 		case a == "--json":
 			o.asJSON = true
+		case a == "--heading":
+			o.heading, o.headingSet = true, true
+		case a == "--no-heading":
+			o.heading, o.headingSet = false, true
+		case a == "-H", a == "--with-filename":
+			o.withFilename, o.withFilenameSet = true, true
+		case a == "-I", a == "--no-filename":
+			o.noFilename, o.withFilenameSet = true, true
 		case a == "--":
 			i++
 			paths = append(paths, args[i:]...)
@@ -178,8 +204,24 @@ run:
 		o.patterns = append(o.patterns, paths[0])
 		paths = paths[1:]
 	}
+	// No explicit path. Real ripgrep reads stdin when stdin is not a
+	// terminal and recurses from the cwd when it is. There is no
+	// terminal here, so peek instead: if something was piped in, search
+	// that; otherwise fall back to recursing from the cwd, which is
+	// what `rg pattern` on its own is expected to do.
+	stdinOnly := false
+	var stdinData []byte
 	if len(paths) == 0 {
-		paths = []string{"."}
+		if c.Stdin != nil {
+			br := bufio.NewReader(c.Stdin)
+			if _, err := br.Peek(1); err == nil {
+				stdinData, _ = io.ReadAll(br)
+				stdinOnly = true
+			}
+		}
+		if !stdinOnly {
+			paths = []string{"."}
+		}
 	}
 
 	flags := ""
@@ -210,10 +252,36 @@ run:
 	}
 
 	var files []string
-	for _, p := range paths {
-		collect(c, p, p, o.hidden, &files)
+	// searchedDir records whether any argument named a directory. It,
+	// not the resulting file count, drives the filename prefix: ripgrep
+	// labels every line when it was asked to search a tree, even if the
+	// tree happens to hold a single file.
+	searchedDir := false
+	if stdinOnly {
+		files = []string{"-"}
+	} else {
+		for _, p := range paths {
+			if fi, err := c.FS.Stat(builtinutil.ResolvePath(c.Cwd, p)); err == nil && fi.IsDir() {
+				searchedDir = true
+			}
+			collect(c, p, p, o.hidden, &files)
+		}
+		sort.Strings(files)
 	}
-	sort.Strings(files)
+
+	// Filename prefix default: on when a directory was searched or more
+	// than one path was given, off for a single explicit file and for
+	// stdin. -H / -I override.
+	if !o.withFilenameSet {
+		o.withFilename = searchedDir || len(paths) > 1
+	}
+	if o.noFilename {
+		o.withFilename = false
+	}
+	// Grouped headings only make sense when filenames are shown at all.
+	if !o.headingSet {
+		o.heading = false
+	}
 
 	anyMatch := false
 	for _, f := range files {
@@ -252,7 +320,7 @@ run:
 		if skip {
 			continue
 		}
-		if searchFile(c, &o, re, f) {
+		if searchFile(c, &o, re, f, stdinData) {
 			anyMatch = true
 		}
 	}
@@ -295,11 +363,17 @@ func walk(c *command.Context, abs, display string, hidden bool, out *[]string) {
 	}
 }
 
-func searchFile(c *command.Context, o *opts, re *regexp.Regexp, name string) bool {
-	abs := builtinutil.ResolvePath(c.Cwd, name)
-	data, err := c.FS.ReadFile(abs)
-	if err != nil {
-		return false
+func searchFile(c *command.Context, o *opts, re *regexp.Regexp, name string, stdin []byte) bool {
+	var data []byte
+	if name == "-" {
+		data = stdin
+	} else {
+		abs := builtinutil.ResolvePath(c.Cwd, name)
+		var err error
+		data, err = c.FS.ReadFile(abs)
+		if err != nil {
+			return false
+		}
 	}
 	lines := splitLines(data)
 
@@ -326,22 +400,39 @@ func searchFile(c *command.Context, o *opts, re *regexp.Regexp, name string) boo
 		return len(matchLines) > 0
 	}
 
+	display := name
+	if name == "-" {
+		display = "<stdin>"
+	}
+
 	if o.filesOnly {
 		if len(matchLines) > 0 {
-			_, _ = fmt.Fprintf(c.Stdout, "%s\n", name)
+			_, _ = fmt.Fprintf(c.Stdout, "%s\n", display)
 		}
 		return len(matchLines) > 0
 	}
 	if o.countOnly {
-		_, _ = fmt.Fprintf(c.Stdout, "%s:%d\n", name, len(matchLines))
+		if o.withFilename {
+			_, _ = fmt.Fprintf(c.Stdout, "%s:%d\n", display, len(matchLines))
+		} else {
+			_, _ = fmt.Fprintf(c.Stdout, "%d\n", len(matchLines))
+		}
 		return len(matchLines) > 0
 	}
 	if len(matchLines) == 0 {
 		return false
 	}
 
-	// Header is the filename per ripgrep convention (only when context spans).
-	_, _ = fmt.Fprintf(c.Stdout, "%s\n", name)
+	// linePrefix is what precedes each emitted line. In the grouped
+	// (--heading) layout the filename is printed once above the block;
+	// otherwise it rides on every line, which is what ripgrep does
+	// whenever stdout is not a terminal.
+	linePrefix := ""
+	if o.heading {
+		_, _ = fmt.Fprintf(c.Stdout, "%s\n", display)
+	} else if o.withFilename {
+		linePrefix = display + ":"
+	}
 	// Determine printed-line set with before/after context.
 	printed := make(map[int]bool)
 	for _, l := range matchLines {
@@ -367,14 +458,18 @@ func searchFile(c *command.Context, o *opts, re *regexp.Regexp, name string) boo
 			sep = ":"
 		}
 		if o.lineNumber && !o.noLineNumber {
-			_, _ = fmt.Fprintf(c.Stdout, "%d%s%s\n", k+1, sep, lines[k])
+			_, _ = fmt.Fprintf(c.Stdout, "%s%d%s%s\n", linePrefix, k+1, sep, lines[k])
 		} else {
-			_, _ = fmt.Fprintf(c.Stdout, "%s\n", lines[k])
+			_, _ = fmt.Fprintf(c.Stdout, "%s%s\n", linePrefix, lines[k])
 		}
 		prev = k
 	}
-	// Trailing newline between files (ripgrep convention).
-	_, _ = io.WriteString(c.Stdout, "\n")
+	// The blank separator between files belongs to the grouped layout
+	// only; in the flat layout it would be spurious output that breaks
+	// `rg ... | wc -l`.
+	if o.heading {
+		_, _ = io.WriteString(c.Stdout, "\n")
+	}
 	return true
 }
 
@@ -411,11 +506,11 @@ func emitJSON(w io.Writer, name string, lines []string, matchLines []int, spans 
 		encode(w, map[string]any{
 			"type": "match",
 			"data": map[string]any{
-				"path":             map[string]any{"text": name},
-				"lines":            linesField,
-				"line_number":      idx + 1,
-				"absolute_offset":  0,
-				"submatches":       subs,
+				"path":            map[string]any{"text": name},
+				"lines":           linesField,
+				"line_number":     idx + 1,
+				"absolute_offset": 0,
+				"submatches":      subs,
 			},
 		})
 	}
@@ -426,13 +521,13 @@ func emitJSON(w io.Writer, name string, lines []string, matchLines []int, spans 
 		"data": map[string]any{
 			"path": map[string]any{"text": name},
 			"stats": map[string]any{
-				"elapsed":          map[string]any{"secs": int(dur.Seconds()), "nanos": int(dur.Nanoseconds() % 1e9), "human": dur.String()},
-				"searches":         1,
+				"elapsed":             map[string]any{"secs": int(dur.Seconds()), "nanos": int(dur.Nanoseconds() % 1e9), "human": dur.String()},
+				"searches":            1,
 				"searches_with_match": boolToInt(matched > 0),
-				"bytes_searched":   sumBytes(lines),
-				"bytes_printed":    0,
-				"matched_lines":    matched,
-				"matches":          matched,
+				"bytes_searched":      sumBytes(lines),
+				"bytes_printed":       0,
+				"matched_lines":       matched,
+				"matches":             matched,
 			},
 		},
 	})

@@ -16,10 +16,10 @@ import (
 	"github.com/mark3labs/go-bash/command"
 	gbfs "github.com/mark3labs/go-bash/fs"
 	"github.com/mark3labs/go-bash/fs/memfs"
-	bashinterp "github.com/mark3labs/go-bash/interp"
 	gbalias "github.com/mark3labs/go-bash/internal/alias"
 	"github.com/mark3labs/go-bash/internal/ringbuf"
 	"github.com/mark3labs/go-bash/internal/runtimestate"
+	bashinterp "github.com/mark3labs/go-bash/interp"
 	"github.com/mark3labs/go-bash/network"
 	"github.com/mark3labs/go-bash/parser"
 	"github.com/mark3labs/go-bash/transform"
@@ -154,11 +154,12 @@ func New(opts BashOptions) (*Bash, error) {
 	} else {
 		b.fs = memfs.New()
 	}
-	if len(opts.Files) > 0 {
-		if err := seedFiles(b.fs, opts.Files); err != nil {
-			return nil, err
-		}
-	}
+	// /dev/null must discard writes and read as empty for every
+	// consumer — shell redirections and built-ins alike. This is
+	// independent of the default layout below: the wrapper matches on
+	// path, so /dev/null works even when the caller manages its own
+	// layout and no /dev directory exists.
+	b.fs = gbfs.WithNullDevice(b.fs)
 	// Command registry. CustomCommands register first so name
 	// collisions with later (Phase 10) built-in registrations resolve
 	// in favor of the custom entry — the built-in bootstrap will skip
@@ -214,6 +215,11 @@ func New(opts BashOptions) (*Bash, error) {
 	// non-fatal: a read-only or restricted FileSystem may reject some
 	// of the writes, but New should still succeed so the caller can
 	// inspect / repair the FS post-construction.
+	if len(opts.Files) > 0 {
+		if err := seedFiles(b.fs, opts.Files); err != nil {
+			return nil, err
+		}
+	}
 	useDefaultLayout := opts.Cwd == "" && len(opts.Files) == 0
 	if useDefaultLayout {
 		_ = applyDefaultLayout(b.fs, b.procInfo, b.registry)
@@ -249,7 +255,7 @@ func New(opts BashOptions) (*Bash, error) {
 
 // FS returns the virtual filesystem this Bash is bound to. Useful for
 // host-side inspection or post-Exec assertions in tests.
-func (b *Bash) FS() gbfs.FileSystem { return b.fs }
+func (b *Bash) FS() gbfs.FileSystem { return gbfs.UnwrapNullDevice(b.fs) }
 
 // Registry returns the command dispatch registry. The returned
 // pointer is the live registry consulted by every Exec call; mutating
@@ -519,6 +525,26 @@ func (b *Bash) execLocked(ctx context.Context, script string, opts ExecOptions) 
 					Limit: "MaxStringLength",
 					Value: limits.MaxStringLength,
 				})
+			}
+		}
+		// mvdan/sh's own `cd` and `pwd` are unusable inside the sandbox:
+		// cd gates on unix.Access() against the HOST filesystem (see
+		// builtins/cd), and pwd reads the $PWD variable that only that
+		// broken cd maintains. Both are shadowed by gobash built-ins
+		// that work off the VFS, but mvdan/sh dispatches its builtins
+		// before the exec handler ever sees the name — so redirect them
+		// here, by path, which routes through lookupCommand's /bin/
+		// basename fallback into the registry.
+		//
+		// A user-defined shell function of the same name still wins:
+		// r.Funcs is consulted after the CallHandler, and rewriting the
+		// word would hide the function.
+		if runnerRef != nil {
+			if _, isFunc := runnerRef.Funcs[args[0]]; !isFunc {
+				switch args[0] {
+				case "cd", "pwd":
+					args = append([]string{"/bin/" + args[0]}, args[1:]...)
+				}
 			}
 		}
 		cmd := cmdCount.Add(1)
