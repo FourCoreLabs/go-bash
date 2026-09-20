@@ -56,6 +56,10 @@ import (
 	"github.com/mark3labs/go-bash/network"
 )
 
+// errNoRunner is returned by the cd back-channel when it is invoked
+// without a live interpreter behind it.
+var errNoRunner = errors.New("cd: no interpreter attached")
+
 // Config carries everything BuildRunner needs to construct a runner.
 // The caller — typically gobash.(*Bash).Exec — assembles this from the
 // *Bash + ExecOptions inputs. All fields except CallHandler are
@@ -172,6 +176,20 @@ type Config struct {
 // eventual richer hookpoint — e.g. cancelling pending I/O during
 // runner-init — does not require a breaking change.
 func BuildRunner(ctx context.Context, cfg Config) (*mvinterp.Runner, error) {
+	// setCwd is the `cd` back-channel. mvdan/sh owns Runner.Dir and its
+	// own cd builtin cannot be used (it gates on unix.Access against the
+	// HOST filesystem, which no virtual path satisfies), so gobash
+	// dispatches cd to its own built-in and lets it move Dir through
+	// here. The runner does not exist yet at this point, hence the
+	// deferred reference — same pattern as the CallHandler in bash.go.
+	setCwd := func(ctx context.Context, dir string) error {
+		r := activeRunner(mvinterp.HandlerCtx(ctx))
+		if r == nil {
+			return errNoRunner
+		}
+		r.Dir = dir
+		return nil
+	}
 	_ = ctx
 	if cfg.FS == nil {
 		return nil, errors.New("interp: Config.FS is required")
@@ -192,6 +210,7 @@ func BuildRunner(ctx context.Context, cfg Config) (*mvinterp.Runner, error) {
 		// notFoundExecHandler; mvdan/sh's DefaultExecHandler is
 		// NEVER reached, so no os/exec call escapes to the host.
 		mvinterp.ExecHandlers(registryDispatchMiddleware(cfg.Registry, dispatchEnv{
+			setCwd:      setCwd,
 			fs:          cfg.FS,
 			fetch:       cfg.Fetch,
 			sleep:       cfg.Sleep,
@@ -244,6 +263,7 @@ type dispatchEnv struct {
 	exec        command.SubExecFunc
 	sourceDepth int
 	shopt       command.ShoptTable
+	setCwd      func(ctx context.Context, dir string) error
 }
 
 // registryDispatchMiddleware returns the ExecHandlers middleware that
@@ -325,6 +345,25 @@ func dispatchCommand(ctx context.Context, cmd command.Command, args []string, re
 		Exec:        env.exec,
 		SourceDepth: env.sourceDepth,
 		Shopt:       env.shopt,
+		SetCwd: func(dir string) error {
+			if env.setCwd == nil {
+				return errNoRunner
+			}
+			prev := hc.Dir
+			if err := env.setCwd(ctx, dir); err != nil {
+				return err
+			}
+			// $PWD / $OLDPWD live in the interpreter's variable table,
+			// which only mvdan/sh can write. HandlerContext.Builtin is
+			// the exported door into the *active* runner; `export` is
+			// assignment syntax rather than a builtin there, so go
+			// through `eval`, which is in the builtin table and runs on
+			// that same runner. bash keeps both variables exported, so
+			// export is the faithful form.
+			_ = hc.Builtin(ctx, []string{"eval",
+				"export PWD=" + shellQuote(dir) + " OLDPWD=" + shellQuote(prev)})
+			return nil
+		},
 	}
 	res := cmd.Execute(ctx, args, cctx)
 	if res.Stdout != "" && hc.Stdout != nil {
@@ -436,3 +475,9 @@ func ensurePathError(err error, op, path string) error {
 type eofReader struct{}
 
 func (eofReader) Read(p []byte) (int, error) { return 0, io.EOF }
+
+// shellQuote renders s as a single-quoted shell word, so a directory
+// containing spaces or quotes survives the round trip through eval.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}

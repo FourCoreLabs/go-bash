@@ -39,7 +39,20 @@ func parentDir(p string) string {
 func TestBasic(t *testing.T) {
 	files := map[string]string{"/d/a.txt": "foo\nbar\nfoobar\n"}
 	out, _, code := runCmd(t, files, "foo", "/d")
-	if code != 0 || !strings.Contains(out, "1:foo") {
+	// Piped ripgrep labels each line with the file but prints no line
+	// number unless -n is given.
+	if code != 0 || !strings.Contains(out, "/d/a.txt:foo") {
+		t.Errorf("out=%q exit=%d", out, code)
+	}
+	if strings.Contains(out, ":1:") {
+		t.Errorf("line numbers should be off by default when piped: %q", out)
+	}
+}
+
+func TestLineNumbersOptIn(t *testing.T) {
+	files := map[string]string{"/d/a.txt": "foo\nbar\nfoobar\n"}
+	out, _, code := runCmd(t, files, "-n", "foo", "/d")
+	if code != 0 || !strings.Contains(out, "/d/a.txt:1:foo") {
 		t.Errorf("out=%q exit=%d", out, code)
 	}
 }
