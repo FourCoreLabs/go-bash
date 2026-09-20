@@ -209,6 +209,12 @@ func BuildRunner(ctx context.Context, cfg Config) (*mvinterp.Runner, error) {
 
 	opts := []mvinterp.RunnerOption{
 		mvinterp.StdIO(stdin, cfg.Stdout, cfg.Stderr),
+		// gobash always runs over a virtual filesystem, so shell paths are
+		// POSIX paths even when the host is not: on Windows an absolute
+		// virtual path such as /work is otherwise joined onto the current
+		// directory and cd, test -r/-w/-x, source and the stat handlers
+		// cannot address it.
+		mvinterp.VFSPaths(),
 		mvinterp.Env(expand.ListEnviron(cfg.Env...)),
 		// Registry dispatch: every non-mvdan-builtin
 		// command goes through the registry. The chain terminates in
