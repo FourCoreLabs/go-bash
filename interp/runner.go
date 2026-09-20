@@ -70,6 +70,11 @@ type Config struct {
 	// an empty environment.
 	Env []string
 
+	// ShellOptions are applied to the runner before the script runs, using
+	// the `set` syntax mvdan/sh accepts ("-o", "pipefail"). Nil leaves the
+	// interpreter defaults untouched.
+	ShellOptions []string
+
 	// Cwd is the script's working directory. Resolved through the VFS
 	// (NOT the host disk) — see the package-level Phase 3 quirk note.
 	// Empty string leaves the runner's default Dir unchanged.
@@ -229,6 +234,9 @@ func BuildRunner(ctx context.Context, cfg Config) (*mvinterp.Runner, error) {
 	}
 	if cfg.CallHandler != nil {
 		opts = append(opts, mvinterp.CallHandler(cfg.CallHandler))
+	}
+	if len(cfg.ShellOptions) > 0 {
+		opts = append(opts, mvinterp.Params(cfg.ShellOptions...))
 	}
 
 	runner, err := mvinterp.New(opts...)

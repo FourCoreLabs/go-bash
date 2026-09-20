@@ -56,6 +56,10 @@ type Bash struct {
 	trace    TraceFunc
 	procInfo ProcessInfo
 
+	// shellOptions are applied to the interpreter at construction time in
+	// `set` syntax (see BashOptions.ShellOptions).
+	shellOptions []string
+
 	// fs is the virtual filesystem backing every script-side file
 	// operation. Phase 3 wires this up via BashOptions.{FS, Files};
 	// the open/stat/readdir handlers passed to mvdan/sh during Exec
@@ -130,16 +134,17 @@ const loopSentinelName = "__gobash_loop_iter__"
 // in Phases 1–2).
 func New(opts BashOptions) (*Bash, error) {
 	b := &Bash{
-		env:     cloneEnv(opts.Env),
-		cwd:     opts.Cwd,
-		limits:  ResolveLimits(opts.ExecutionLimits),
-		sleep:   opts.Sleep,
-		logger:  opts.Logger,
-		trace:   opts.Trace,
-		aliases: runtimestate.NewAliasTable(),
-		history: runtimestate.NewHistoryRing(0),
-		shopt:   runtimestate.NewShoptTable(),
-		plugins: append([]transform.Plugin(nil), opts.TransformPlugins...),
+		env:          cloneEnv(opts.Env),
+		cwd:          opts.Cwd,
+		limits:       ResolveLimits(opts.ExecutionLimits),
+		shellOptions: opts.ShellOptions,
+		sleep:        opts.Sleep,
+		logger:       opts.Logger,
+		trace:        opts.Trace,
+		aliases:      runtimestate.NewAliasTable(),
+		history:      runtimestate.NewHistoryRing(0),
+		shopt:        runtimestate.NewShoptTable(),
+		plugins:      append([]transform.Plugin(nil), opts.TransformPlugins...),
 	}
 	if opts.ProcessInfo != nil {
 		b.procInfo = *opts.ProcessInfo
@@ -591,25 +596,26 @@ func (b *Bash) execLocked(ctx context.Context, script string, opts ExecOptions) 
 	}
 
 	runner, err := bashinterp.BuildRunner(execCtx, bashinterp.Config{
-		Env:         envSlice(env),
-		Cwd:         cwd,
-		Stdin:       stdin,
-		Stdout:      stdoutW,
-		Stderr:      stderrW,
-		FS:          b.fs,
-		CallHandler: callHandler,
-		ReadDirHook: readDirHook,
-		Registry:    b.registry,
-		Fetch:       b.fetch,
-		Sleep:       b.sleep,
-		Trace:       b.trace,
-		Limits:      b.limits,
-		ExportedEnv: env,
-		Aliases:     b.aliases,
-		History:     b.history,
-		Exec:        b.subExec,
-		SourceDepth: b.execDepth,
-		Shopt:       b.shopt,
+		Env:          envSlice(env),
+		ShellOptions: b.shellOptions,
+		Cwd:          cwd,
+		Stdin:        stdin,
+		Stdout:       stdoutW,
+		Stderr:       stderrW,
+		FS:           b.fs,
+		CallHandler:  callHandler,
+		ReadDirHook:  readDirHook,
+		Registry:     b.registry,
+		Fetch:        b.fetch,
+		Sleep:        b.sleep,
+		Trace:        b.trace,
+		Limits:       b.limits,
+		ExportedEnv:  env,
+		Aliases:      b.aliases,
+		History:      b.history,
+		Exec:         b.subExec,
+		SourceDepth:  b.execDepth,
+		Shopt:        b.shopt,
 	})
 	if err != nil {
 		return result, err
@@ -625,6 +631,10 @@ func (b *Bash) execLocked(ctx context.Context, script string, opts ExecOptions) 
 		result.Stderr = errBuf.String()
 	}
 	result.Env = exportedEnv(runner)
+	// The working directory is observable state: record it before any of the
+	// error paths below can return, so a host can carry `cd` across
+	// executions even when the script failed.
+	result.Cwd = runner.Dir
 	if pluginMetadata != nil {
 		result.Metadata = pluginMetadata
 	}

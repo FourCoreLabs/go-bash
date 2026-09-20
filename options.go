@@ -86,6 +86,13 @@ type BashOptions struct {
 	MaxCallDepth      int
 	MaxCommandCount   int
 	MaxLoopIterations int
+
+	// ShellOptions are applied to the interpreter at construction time, in
+	// the same syntax `set` accepts: ShellOptions{"-o", "pipefail"} turns on
+	// pipefail before the first command runs. Equivalent to interp.Params in
+	// mvdan/sh. A script can still change them (`set +o pipefail`).
+	//
+	ShellOptions []string
 }
 
 // ExecOptions configures a single Exec call. Per-call settings override
