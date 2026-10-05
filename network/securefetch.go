@@ -47,8 +47,8 @@ type secureFetch struct {
 // access to sf.cfg) can be a closure.
 func (sf *secureFetch) buildClient() *http.Client {
 	transport := &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: sf.dialContext,
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           sf.dialContext,
 		ForceAttemptHTTP2:     true,
 		MaxIdleConns:          10,
 		IdleConnTimeout:       30 * time.Second,
@@ -299,9 +299,17 @@ type headerTransform struct {
 }
 
 func (h *headerTransform) RoundTrip(req *http.Request) (*http.Response, error) {
-	entry, ok := findMatch(h.sf.compiled, req.URL)
-	if ok {
-		applyTransforms(req, entry.transforms)
+	// RoundTrippers must not mutate the caller's request. In particular,
+	// http.Client builds redirect headers from the initial request: leaving
+	// a path-scoped credential there would carry it to a nonmatching hop.
+	req = req.Clone(req.Context())
+	if req.Header == nil {
+		req.Header = make(http.Header)
+	}
+	for _, entry := range h.sf.compiled {
+		if entry.matches(req.URL) {
+			applyTransforms(req, entry.transforms)
+		}
 	}
 	return h.base.RoundTrip(req)
 }

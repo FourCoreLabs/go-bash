@@ -12,6 +12,12 @@ similar bash constructs, builtin set, and VFS shape — but running
 in-process under a Go runtime, with `CGO_ENABLED=0` builds and no
 `os/exec` reachable from script context.
 
+**Compatibility**: Full feature or byte-level parity with `just-bash` is not
+currently achieved. See [the pinned parity audit](PARITY_AUDIT.md) for known
+command, shell, API, and execution-limit gaps and the verification scope.
+See [implementation progress](PARITY_PROGRESS.md) for fixes and current live
+comparison results.
+
 **Note**: This is beta software. The public API is stable, but
 byte-level output of some builtins may shift as we close gaps against
 real bash. Pin a version in `go.mod`. See [security

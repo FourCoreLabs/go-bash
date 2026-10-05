@@ -1,7 +1,8 @@
 // Package xan implements the `xan` CSV toolkit built-in.
 //
 // Subset matching just-bash's port: subcommands `select`, `slice`,
-// `filter`, `count`, `flatten`, `headers`, `stats`, `cat`, `to`, `from`.
+// `filter`, `count`, `flatten`, `headers`, `stats`, `cat`, `to`, `from`,
+// `head`, `tail`, `sort`, `dedup`, `transpose`, and `join`.
 // All file I/O routes through Context.FS; stdin via Context.Stdin;
 // stdout via Context.Stdout.
 //
@@ -18,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	stdstrings "strings"
@@ -31,6 +33,11 @@ const helpText = `Usage: xan SUBCOMMAND [OPTIONS] [FILE]
 A small CSV toolkit (subset of medialab/xan).
 
 Subcommands:
+  head|tail -n N [FILE]       first/last N data rows (default 10)
+  sort [-s COL] [-N] [-R]     stable sort by column
+  dedup [-s COL] [FILE]       retain first occurrence of each key/row
+  transpose [FILE]           swap columns and rows
+  join KEY1 FILE1 KEY2 FILE2  inner join (--left|--right|--full, -D VALUE)
   select COLS [FILE]          keep only the named columns
   slice -s N -l N [FILE]      slice rows by offset/length
   filter EXPR [FILE]          keep rows where EXPR is true
@@ -47,19 +54,21 @@ Subcommands:
 // New returns the xan command.
 func New() command.Command { return command.Define("xan", run) }
 
-func run(_ context.Context, args []string, c *command.Context) command.Result {
+func run(ctx context.Context, args []string, c *command.Context) command.Result {
 	if len(args) < 2 {
 		return builtinutil.UsageError(c.Stderr, usage)
 	}
-	for _, a := range args[1:] {
-		if a == "--help" {
-			builtinutil.PrintHelp(c.Stdout, helpText)
-			return command.Result{ExitCode: 0}
-		}
+	if slices.Contains(args[1:], "--help") {
+		builtinutil.PrintHelp(c.Stdout, helpText)
+		return command.Result{ExitCode: 0}
 	}
 	sub := args[1]
 	rest := args[2:]
 	switch sub {
+	case "head", "tail", "sort", "dedup", "transpose":
+		return runRows(ctx, c, sub, rest)
+	case "join":
+		return runJoin(ctx, c, rest)
 	case "select":
 		return runSelect(c, rest)
 	case "slice":
@@ -237,10 +246,7 @@ func runSlice(c *command.Context, args []string) command.Result {
 			if err != nil || n < 0 {
 				return builtinutil.UsageError(c.Stderr, usage)
 			}
-			length = n - start
-			if length < 0 {
-				length = 0
-			}
+			length = max(n-start, 0)
 			i++
 		case a == "--":
 			rest = append(rest, args[i+1:]...)
@@ -264,10 +270,7 @@ func runSlice(c *command.Context, args []string) command.Result {
 	}
 	end := len(rows)
 	if length >= 0 {
-		end = start + length
-		if end > len(rows) {
-			end = len(rows)
-		}
+		end = min(start+length, len(rows))
 	}
 	if err := writeCSV(c.Stdout, header, rows[start:end]); err != nil {
 		return builtinutil.Errorf(c.Stderr, "xan", 1, "%v", err)
@@ -361,7 +364,7 @@ func runHeaders(c *command.Context, args []string) command.Result {
 		return builtinutil.Errorf(c.Stderr, "xan", 1, "%v", err)
 	}
 	for i, h := range header {
-		_, _ = fmt.Fprintf(c.Stdout, "%d   %s\n", i+1, h)
+		_, _ = fmt.Fprintf(c.Stdout, "%d   %s\n", i, h)
 	}
 	return command.Result{}
 }
@@ -442,13 +445,51 @@ func runStats(c *command.Context, args []string) command.Result {
 	return command.Result{}
 }
 
+func runCatColumns(c *command.Context, files []string) command.Result {
+	if len(files) == 0 {
+		return builtinutil.UsageError(c.Stderr, usage)
+	}
+	var header []string
+	var tables [][][]string
+	var widths []int
+	maxRows := 0
+	for _, file := range files {
+		h, rows, err := readCSV(c, file)
+		if err != nil {
+			return builtinutil.Errorf(c.Stderr, "xan", 1, "%s: %v", file, err)
+		}
+		header = append(header, h...)
+		widths = append(widths, len(h))
+		tables = append(tables, rows)
+		if len(rows) > maxRows {
+			maxRows = len(rows)
+		}
+	}
+	rows := make([][]string, maxRows)
+	for i := range rows {
+		rows[i] = make([]string, 0, len(header))
+		for j, table := range tables {
+			if i < len(table) {
+				row := make([]string, widths[j])
+				copy(row, table[i])
+				rows[i] = append(rows[i], row...)
+			} else {
+				rows[i] = append(rows[i], make([]string, widths[j])...)
+			}
+		}
+	}
+	if err := writeCSV(c.Stdout, header, rows); err != nil {
+		return builtinutil.Errorf(c.Stderr, "xan", 1, "%v", err)
+	}
+	return command.Result{}
+}
+
 func runCat(c *command.Context, args []string) command.Result {
 	// Accept optional `rows` subkeyword; default mode is rows.
 	files := args
 	if len(args) > 0 && (args[0] == "rows" || args[0] == "columns") {
 		if args[0] == "columns" {
-			return builtinutil.Errorf(c.Stderr, "xan", 2,
-				"cat columns not implemented")
+			return runCatColumns(c, args[1:])
 		}
 		files = args[1:]
 	}

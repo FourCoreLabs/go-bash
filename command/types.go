@@ -64,4 +64,6 @@ type Limits struct {
 	MaxOutputSize            int
 	MaxFileDescriptors       int
 	MaxSourceDepth           int
+	MaxInputSize             int
+	MaxFileSystemBytes       int
 }

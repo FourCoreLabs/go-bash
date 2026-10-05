@@ -283,7 +283,6 @@ func TestSecureFetch_DenyPrivateRanges_RFC1918(t *testing.T) {
 	t.Parallel()
 	cases := []string{"10.0.0.1", "192.168.1.1", "172.16.5.5", "::1", "fe80::1"}
 	for _, ip := range cases {
-		ip := ip
 		t.Run(ip, func(t *testing.T) {
 			t.Parallel()
 			d := NewSecureFetch(&Config{
@@ -386,5 +385,103 @@ func TestSecureFetch_DisablesRedirects(t *testing.T) {
 	}
 	if resp.Status != 302 {
 		t.Errorf("status = %d, want 302", resp.Status)
+	}
+}
+
+// Expected precedence follows just-bash src/network/fetch.ts:143–164,
+// pinned by PARITY_AUDIT.md to commit 7537a260e38648e8998db7a95504102ad80b0194.
+func TestSecureFetch_CumulativeTransforms(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprintf(w, "%s|%s|%s|%s|%s", r.Header.Get("Authorization"),
+			r.Header.Get("X-Broad"), r.Header.Get("X-Narrow"),
+			r.Header.Get("X-Unmatched"), r.Header.Get("X-Caller"))
+	}))
+	t.Cleanup(srv.Close)
+
+	for _, fullAccess := range []bool{false, true} {
+		t.Run(fmt.Sprintf("fullAccess=%v", fullAccess), func(t *testing.T) {
+			d := NewSecureFetch(&Config{
+				DangerouslyAllowFullAccess: fullAccess,
+				AllowedURLPrefixes: []AllowedURLEntry{
+					{URL: srv.URL + "/api/", Transform: []RequestTransform{
+						{Headers: map[string]string{"Authorization": "narrow", "X-Narrow": "yes"}},
+					}},
+					// Later wins, even when the later prefix is less specific.
+					{URL: srv.URL, Transform: []RequestTransform{
+						{Headers: map[string]string{"authorization": "broad", "X-Broad": "yes"}},
+						{Headers: map[string]string{"AUTHORIZATION": "last"}},
+					}},
+					{URL: srv.URL + "/other/", Transform: []RequestTransform{
+						{Headers: map[string]string{"Authorization": "wrong path", "X-Unmatched": "bad"}},
+					}},
+					{URL: "https://other.example.com/api/", Transform: []RequestTransform{
+						{Headers: map[string]string{"Authorization": "wrong origin", "X-Unmatched": "bad"}},
+					}},
+				},
+			})
+			req := mustReq(t, "GET", srv.URL+"/api/users")
+			req.Header.Set("Authorization", "caller")
+			req.Header.Set("X-Caller", "preserved")
+			resp, err := d.Do(context.Background(), req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, want := string(resp.Body), "last|yes|yes||preserved"; got != want {
+				t.Errorf("headers = %q, want %q", got, want)
+			}
+			if req.Header.Get("Authorization") != "caller" || req.Header.Get("X-Broad") != "" {
+				t.Errorf("caller headers mutated: %v", req.Header)
+			}
+		})
+	}
+}
+
+func TestSecureFetch_TransformsRecomputedOnRedirect(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/start" {
+			if r.Header.Get("Authorization") != "start-secret" || r.Header.Get("X-Shared") != "start" {
+				http.Error(w, "missing initial transforms", http.StatusBadRequest)
+				return
+			}
+			http.Redirect(w, r, "/end", http.StatusFound)
+			return
+		}
+		_, _ = fmt.Fprintf(w, "%s|%s|%s", r.Header.Get("Authorization"), r.Header.Get("X-Shared"), r.Header.Get("X-End"))
+	}))
+	t.Cleanup(srv.Close)
+	d := NewSecureFetch(&Config{AllowedURLPrefixes: []AllowedURLEntry{
+		{URL: srv.URL, Transform: []RequestTransform{
+			{Headers: map[string]string{"X-Shared": "base"}},
+		}},
+		{URL: srv.URL + "/start", Transform: []RequestTransform{
+			{Headers: map[string]string{"Authorization": "start-secret", "X-Shared": "start"}},
+		}},
+		{URL: srv.URL + "/end", Transform: []RequestTransform{
+			{Headers: map[string]string{"X-Shared": "end", "X-End": "yes"}},
+		}},
+	}})
+	resp, err := d.Do(context.Background(), mustReq(t, "GET", srv.URL+"/start"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(resp.Body), "|end|yes"; got != want {
+		t.Errorf("redirect headers = %q, want %q (no start credential)", got, want)
+	}
+}
+
+func TestSecureFetch_ExplicitEmptyAllowedMethods(t *testing.T) {
+	t.Parallel()
+	d := NewSecureFetch(&Config{
+		AllowedURLPrefixes: []AllowedURLEntry{{URL: "https://example.com"}},
+		AllowedMethods:     []string{},
+	})
+	for _, method := range []string{"GET", "HEAD", "POST"} {
+		_, err := d.Do(context.Background(), mustReq(t, method, "https://example.com/"))
+		var denied *MethodNotAllowedError
+		if !errors.As(err, &denied) || denied.Method != method {
+			t.Errorf("method %s: err = %v, want MethodNotAllowedError", method, err)
+		}
 	}
 }

@@ -29,12 +29,29 @@ const (
 	MaxHeredocSize = 10 * 1024 * 1024
 )
 
+// Limits controls parser input and heredoc budgets. A zero value is a real
+// zero-byte budget; use DefaultLimits for the compatibility defaults.
+type Limits struct {
+	MaxInputSize   int
+	MaxHeredocSize int
+}
+
+// DefaultLimits returns the parser budgets used by Parse.
+func DefaultLimits() Limits {
+	return Limits{MaxInputSize: MaxInputSize, MaxHeredocSize: MaxHeredocSize}
+}
+
 // Parse parses src into a typed *ast.Script, enforcing the parser-side
 // hard limits in this package. Returns *ParseError on failure.
 func Parse(src string) (*ast.Script, error) {
-	if len(src) > MaxInputSize {
+	return ParseWithLimits(src, DefaultLimits())
+}
+
+// ParseWithLimits parses src using the supplied input and heredoc budgets.
+func ParseWithLimits(src string, limits Limits) (*ast.Script, error) {
+	if len(src) > limits.MaxInputSize {
 		return nil, &ParseError{
-			Msg: fmt.Sprintf("input too large: %d bytes (max %d)", len(src), MaxInputSize),
+			Msg: fmt.Sprintf("input too large: %d bytes (max %d)", len(src), limits.MaxInputSize),
 		}
 	}
 
@@ -63,7 +80,7 @@ func Parse(src string) (*ast.Script, error) {
 		}
 	}
 
-	t := &translator{}
+	t := &translator{maxHeredocSize: limits.MaxHeredocSize}
 	script, err := t.script(file)
 	if err != nil {
 		return nil, err

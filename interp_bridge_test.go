@@ -83,9 +83,9 @@ func TestPhase5SmokeVFSRedirect(t *testing.T) {
 	}
 }
 
-// TestPhase5ExportPropagatesAcrossExec covers the §5.6 + §5.7 contract:
-// `export X=hello` then `echo $X` in a second Exec call prints hello.
-func TestPhase5ExportPropagatesAcrossExec(t *testing.T) {
+// Each Exec starts from the constructor environment, matching upstream.
+// Exports are visible in the current call but never survive into the next.
+func TestPhase5ExportDoesNotPropagateAcrossExec(t *testing.T) {
 	b, err := gobash.New(gobash.BashOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -97,8 +97,8 @@ func TestPhase5ExportPropagatesAcrossExec(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Exec 2: %v", err)
 	}
-	if res.Stdout != "hello\n" {
-		t.Errorf("Stdout = %q; want %q", res.Stdout, "hello\n")
+	if res.Stdout != "\n" {
+		t.Errorf("Stdout = %q; want %q", res.Stdout, "\n")
 	}
 }
 
@@ -110,9 +110,7 @@ func TestPhase5PerCallEnvDoesNotPolluteBase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The script exports a new var; without the per-call env it would
-	// normally persist into b.env. With opts.Env set (and ReplaceEnv
-	// false), the export must be ephemeral.
+	// Per-call overrides and script exports must both be ephemeral.
 	_, err = b.Exec(context.Background(),
 		"export X=should_not_persist",
 		gobash.ExecOptions{Env: map[string]string{"X": "once"}})
@@ -129,11 +127,8 @@ func TestPhase5PerCallEnvDoesNotPolluteBase(t *testing.T) {
 	}
 }
 
-// TestPhase5ReplaceEnvSnapshotsExports verifies that when the caller
-// passes ReplaceEnv=true with a per-call Env, the script's exports DO
-// propagate back into b.env (matching the literal §5.6 reading: copy
-// back UNLESS Env was set without ReplaceEnv).
-func TestPhase5ReplaceEnvSnapshotsExports(t *testing.T) {
+// ReplaceEnv replaces only this call's environment; exports remain local.
+func TestPhase5ReplaceEnvDoesNotPersistExports(t *testing.T) {
 	b, err := gobash.New(gobash.BashOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -148,8 +143,8 @@ func TestPhase5ReplaceEnvSnapshotsExports(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Exec 2: %v", err)
 	}
-	if res.Stdout != "y=persists\n" {
-		t.Errorf("ReplaceEnv+export did not persist: Stdout = %q", res.Stdout)
+	if res.Stdout != "y=unset\n" {
+		t.Errorf("ReplaceEnv+export leaked: Stdout = %q", res.Stdout)
 	}
 }
 

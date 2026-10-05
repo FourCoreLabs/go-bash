@@ -9,8 +9,8 @@ import (
 // zero. Exported so tests and host code can refer to the same
 // constants without re-deriving them.
 const (
-	DefaultMaxRedirects   = 20
-	DefaultTimeout        = 30 * time.Second
+	DefaultMaxRedirects    = 20
+	DefaultTimeout         = 30 * time.Second
 	DefaultMaxResponseSize = 10 * 1024 * 1024 // 10 MiB
 )
 
@@ -33,7 +33,9 @@ type Config struct {
 	AllowedURLPrefixes []AllowedURLEntry
 
 	// AllowedMethods restricts which HTTP methods the Doer will issue.
-	// Nil means DefaultAllowedMethods (GET, HEAD). Case-insensitive.
+	// Nil means DefaultAllowedMethods (GET, HEAD). An explicitly empty
+	// slice denies every method (unless DangerouslyAllowFullAccess is set).
+	// Method names are case-insensitive.
 	AllowedMethods []string
 
 	// DangerouslyAllowFullAccess turns SecureFetch into a pass-through.
@@ -135,7 +137,7 @@ func (c *Config) withDefaults() Config {
 	if out.MaxResponseSize == 0 {
 		out.MaxResponseSize = DefaultMaxResponseSize
 	}
-	if len(out.AllowedMethods) == 0 {
+	if out.AllowedMethods == nil {
 		out.AllowedMethods = append([]string(nil), DefaultAllowedMethods...)
 	}
 	return out

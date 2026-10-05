@@ -96,6 +96,15 @@ func NewLimitedWriter(w io.Writer, t *Tracker) *LimitedWriter {
 	return &LimitedWriter{w: w, t: t}
 }
 
+// WrapLimitedWriter avoids charging bytes twice when a nested execution
+// forwards a writer already guarded by the same output tracker.
+func WrapLimitedWriter(w io.Writer, t *Tracker) io.Writer {
+	if existing, ok := w.(*LimitedWriter); ok && existing.t == t {
+		return existing
+	}
+	return NewLimitedWriter(w, t)
+}
+
 // Write implements io.Writer. It returns the number of bytes actually
 // written to the underlying writer. When the Tracker's limit is tripped,
 // Write returns the Tracker's overflow error (n may be > 0 for the call
