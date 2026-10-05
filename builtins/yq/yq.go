@@ -4,9 +4,9 @@
 //
 // Flags:
 //
-//	-i FMT, --input FMT      input format (default yaml)
+//	-p FMT, --input-format FMT input format (default yaml)
 //	-o FMT, --output FMT     output format (default yaml)
-//	-p FMT                   set both input and output
+//	-i, --inplace            modify the first input file in-place
 //	-r, --raw-output         emit strings without JSON/YAML quoting
 //	-c, --compact            compact JSON output
 //	--help                   show this help
@@ -25,6 +25,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"math/big"
 	"sort"
 	"strconv"
 	stdstrings "strings"
@@ -37,14 +38,18 @@ import (
 	"github.com/mark3labs/go-bash/internal/builtinutil"
 )
 
-const usage = "yq [-i FMT] [-o FMT] [-r] [-c] [FILTER] [FILE...]"
+const usage = "yq [-p FMT] [-o FMT] [-ircsnej] [FILTER] [FILE...]"
 const helpText = `Usage: yq [OPTIONS] [FILTER] [FILE...]
 Convert and query YAML/JSON/XML/TOML/CSV. FILTER is a jq expression
 (default: ".").
 
-  -i, --input FMT     input format: yaml|json|xml|toml|csv (default yaml)
+  -p, --input-format FMT input format: yaml|json|xml|toml|csv (default yaml)
   -o, --output FMT    output format: yaml|json|xml|toml|csv (default yaml)
-  -p FMT              set both input and output formats
+  -i, --inplace       modify the first input file in-place
+  -s, --slurp         read all documents into an array
+  -n, --null-input    evaluate once with null; do not read input
+  -e, --exit-status   exit 1 if no result is neither null nor false
+  -j, --join-output   omit output separators and final newline
   -r, --raw-output    emit strings without JSON/YAML quoting
   -c, --compact       compact JSON output
       --help          show this help`
@@ -57,6 +62,7 @@ func run(ctx context.Context, args []string, c *command.Context) command.Result 
 	outFmt := "yaml"
 	rawOut := false
 	compact := false
+	inplace, slurp, nullInput, exitStatus, joinOutput := false, false, false, false, false
 	var positional []string
 
 	i := 1
@@ -66,7 +72,7 @@ func run(ctx context.Context, args []string, c *command.Context) command.Result 
 		case a == "--help":
 			builtinutil.PrintHelp(c.Stdout, helpText)
 			return command.Result{ExitCode: 0}
-		case a == "-i", a == "--input", a == "--input-format":
+		case a == "-p", a == "--input", a == "--input-format":
 			if i+1 >= len(args) {
 				return builtinutil.UsageError(c.Stderr, usage)
 			}
@@ -78,13 +84,20 @@ func run(ctx context.Context, args []string, c *command.Context) command.Result 
 			}
 			outFmt = stdstrings.ToLower(args[i+1])
 			i++
-		case a == "-p":
-			if i+1 >= len(args) {
-				return builtinutil.UsageError(c.Stderr, usage)
-			}
-			inFmt = stdstrings.ToLower(args[i+1])
-			outFmt = inFmt
-			i++
+		case a == "-i", a == "--inplace", a == "--in-place":
+			inplace = true
+		case a == "-s", a == "--slurp":
+			slurp = true
+		case a == "-n", a == "--null-input":
+			nullInput = true
+		case a == "-e", a == "--exit-status":
+			exitStatus = true
+		case a == "-j", a == "--join-output":
+			joinOutput = true
+		case stdstrings.HasPrefix(a, "--input-format="):
+			inFmt = stdstrings.ToLower(stdstrings.TrimPrefix(a, "--input-format="))
+		case stdstrings.HasPrefix(a, "--output-format="):
+			outFmt = stdstrings.ToLower(stdstrings.TrimPrefix(a, "--output-format="))
 		case stdstrings.HasPrefix(a, "--input="):
 			inFmt = stdstrings.ToLower(stdstrings.TrimPrefix(a, "--input="))
 		case stdstrings.HasPrefix(a, "--output="):
@@ -106,6 +119,16 @@ func run(ctx context.Context, args []string, c *command.Context) command.Result 
 					rawOut = true
 				case 'c':
 					compact = true
+				case 'i':
+					inplace = true
+				case 's':
+					slurp = true
+				case 'n':
+					nullInput = true
+				case 'e':
+					exitStatus = true
+				case 'j':
+					joinOutput = true
 				default:
 					ok = false
 				}
@@ -128,29 +151,60 @@ func run(ctx context.Context, args []string, c *command.Context) command.Result 
 	filter := "."
 	var files []string
 	if len(positional) > 0 {
-		// Heuristic: anything starting with `.` or `(` or `[` is a filter;
-		// otherwise treat positional[0] as a file if it exists, else as a
-		// filter. Simpler rule: first positional is filter when there are
-		// no other positionals OR when it starts with a jq-ish prefix.
-		if looksLikeFilter(positional[0]) || len(positional) > 1 {
+		// Keep file-only round trips, but recognize bare jq expressions such
+		// as true, empty, and length (especially useful with --null-input).
+		isFile := positional[0] == "-"
+		if c.FS != nil && !looksLikeFilter(positional[0]) {
+			_, err := c.FS.Stat(builtinutil.ResolvePath(c.Cwd, positional[0]))
+			isFile = isFile || err == nil
+		}
+		if isFile {
+			files = positional
+		} else {
 			filter = positional[0]
 			files = positional[1:]
-		} else {
-			files = positional
 		}
 	}
-	if len(files) == 0 {
-		files = []string{"-"}
+	if inplace && (len(files) == 0 || files[0] == "-") {
+		return builtinutil.Errorf(c.Stderr, "yq", 1, "-i/--inplace requires a file argument")
+	}
+	// Like upstream, in-place mode operates on the first file only.
+	if inplace {
+		files = files[:1]
+		if c.FS == nil {
+			return builtinutil.Errorf(c.Stderr, "yq", 2, "no filesystem")
+		}
 	}
 
-	data, err := builtinutil.ReadAllInputs(c, files)
-	if err != nil {
-		return builtinutil.Errorf(c.Stderr, "yq", 2, "%v", err)
-	}
-
-	inputs, err := decode(inFmt, data)
-	if err != nil {
-		return builtinutil.Errorf(c.Stderr, "yq", 2, "%s decode: %v", inFmt, err)
+	var inputs []any
+	if nullInput {
+		inputs = []any{nil}
+	} else {
+		// Decode separately so file boundaries cannot merge YAML documents
+		// or make otherwise valid TOML/XML inputs invalid.
+		if len(files) == 0 {
+			files = []string{"-"}
+		}
+		inputs = make([]any, 0)
+		// Upstream's slurp reader consumes only the first named input file.
+		// Preserve the usual multi-file behavior when slurp is disabled.
+		if slurp && len(files) > 1 {
+			files = files[:1]
+		}
+		for _, file := range files {
+			data, err := builtinutil.ReadAllInputs(c, []string{file})
+			if err != nil {
+				return builtinutil.Errorf(c.Stderr, "yq", 2, "%v", err)
+			}
+			values, err := decode(inFmt, data)
+			if err != nil {
+				return builtinutil.Errorf(c.Stderr, "yq", 2, "%s decode: %v", inFmt, err)
+			}
+			inputs = append(inputs, values...)
+		}
+		if slurp {
+			inputs = []any{inputs}
+		}
 	}
 
 	q, err := gojq.Parse(filter)
@@ -186,16 +240,38 @@ func run(ctx context.Context, args []string, c *command.Context) command.Result 
 		}
 	}
 
-	if err := encode(c.Stdout, outFmt, results, compact, rawOut); err != nil {
+	var output bytes.Buffer
+	if err := encodeOutput(&output, outFmt, results, compact, rawOut, joinOutput); err != nil {
 		return builtinutil.Errorf(c.Stderr, "yq", 2, "%s encode: %v", outFmt, err)
+	}
+	if inplace {
+		name := builtinutil.ResolvePath(c.Cwd, files[0])
+		info, err := c.FS.Stat(name)
+		if err != nil {
+			return builtinutil.Errorf(c.Stderr, "yq", 2, "%v", err)
+		}
+		if err := c.FS.WriteFile(name, output.Bytes(), info.Mode().Perm()); err != nil {
+			return builtinutil.Errorf(c.Stderr, "yq", 2, "%v", err)
+		}
+		// Upstream in-place writes take precedence over --exit-status.
+		return command.Result{}
+	}
+	if _, err := c.Stdout.Write(output.Bytes()); err != nil {
+		return builtinutil.Errorf(c.Stderr, "yq", 2, "%v", err)
+	}
+	if exitStatus {
+		for _, v := range results {
+			if v != nil && v != false {
+				return command.Result{}
+			}
+		}
+		return command.Result{ExitCode: 1}
 	}
 	return command.Result{}
 }
 
-// looksLikeFilter returns true when s looks like a jq expression rather
-// than a file path. It is intentionally conservative — when both
-// interpretations are plausible (e.g. "foo"), we treat the first
-// positional as the filter only if there are additional positionals.
+// looksLikeFilter recognizes jq prefixes so expressions are not mistaken
+// for existing relative paths. Other operands are checked against the VFS.
 func looksLikeFilter(s string) bool {
 	if s == "." || s == "" {
 		return true
@@ -326,6 +402,15 @@ func decodeCSV(data []byte) (any, error) {
 // gojq understands.
 func normalize(v any) any {
 	switch t := v.(type) {
+	case uint64:
+		// YAML uses unsigned integers for positive scalars; gojq requires
+		// int, float64, or big.Int for all numeric values.
+		if t <= uint64(^uint(0)>>1) {
+			return int(t)
+		}
+		return new(big.Int).SetUint64(t)
+	case int64:
+		return int(t)
 	case json.Number:
 		if i, err := t.Int64(); err == nil {
 			return int(i)
@@ -356,6 +441,25 @@ func normalize(v any) any {
 }
 
 // ---------- encode ----------
+
+// encodeOutput preserves normal document formatting. Join mode serializes
+// each result independently and removes only its framing newline, not embedded
+// newlines in strings or pretty-printed objects. It does not imply raw output.
+func encodeOutput(w io.Writer, format string, vals []any, compact, raw, join bool) error {
+	if !join {
+		return encode(w, format, vals, compact, raw)
+	}
+	for _, v := range vals {
+		var buf bytes.Buffer
+		if err := encode(&buf, format, []any{v}, compact, raw); err != nil {
+			return err
+		}
+		if _, err := w.Write(bytes.TrimSuffix(buf.Bytes(), []byte("\n"))); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func encode(w io.Writer, format string, vals []any, compact, raw bool) error {
 	switch format {

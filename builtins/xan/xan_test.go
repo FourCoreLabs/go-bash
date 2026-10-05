@@ -8,6 +8,7 @@ import (
 
 	"github.com/mark3labs/go-bash/builtins/xan"
 	"github.com/mark3labs/go-bash/command"
+	"github.com/mark3labs/go-bash/fs/memfs"
 )
 
 func run(t *testing.T, stdin string, args ...string) (string, string, int) {
@@ -30,9 +31,16 @@ func TestHeaders(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code=%d", code)
 	}
-	want := "1   name\n2   age\n3   city\n"
+	want := "0   name\n1   age\n2   city\n"
 	if out != want {
 		t.Errorf("got %q want %q", out, want)
+	}
+}
+
+func TestSortSelectedColumn(t *testing.T) {
+	out, stderr, code := run(t, "name,n\na,2\nb,1\nc,3\n", "sort", "-s", "n")
+	if code != 0 || stderr != "" || out != "name,n\nb,1\na,2\nc,3\n" {
+		t.Fatalf("out=%q stderr=%q code=%d", out, stderr, code)
 	}
 }
 
@@ -182,6 +190,48 @@ func TestCat(t *testing.T) {
 	_ = b
 	if !strings.HasPrefix(out, "k,v\na,1\nb,2\n") {
 		t.Errorf("got %q", out)
+	}
+}
+
+func TestRowOperations(t *testing.T) {
+	cases := []struct {
+		name, input, sub string
+		args             []string
+		want             string
+	}{
+		{"head", "a\n3\n1\n2\n", "head", []string{"-n", "2"}, "a\n3\n1\n"},
+		{"tail", "a\n3\n1\n2\n", "tail", []string{"-n", "2"}, "a\n1\n2\n"},
+		{"sort", "a\n3\n1\n2\n", "sort", []string{"-N"}, "a\n1\n2\n3\n"},
+		{"dedup", "a\nx\nx\ny\n", "dedup", nil, "a\nx\ny\n"},
+		{"transpose", "name,a,b\nx,1,2\ny,3,4\n", "transpose", nil, "name,x,y\na,1,3\nb,2,4\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			args := append([]string{tc.sub}, tc.args...)
+			got, stderr, code := run(t, tc.input, args...)
+			if code != 0 || stderr != "" || got != tc.want {
+				t.Fatalf("got %q stderr %q code %d; want %q", got, stderr, code, tc.want)
+			}
+		})
+	}
+}
+
+func TestJoinAndCatColumns(t *testing.T) {
+	fs := memfs.New()
+	_ = fs.WriteFile("/a.csv", []byte("id,a\n1,x\n2,y\n"), 0644)
+	_ = fs.WriteFile("/b.csv", []byte("id,b\n1,z\n3,w\n"), 0644)
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"join", "id", "/a.csv", "id", "/b.csv"}, "id,a,b\n1,x,z\n"},
+		{[]string{"cat", "columns", "/a.csv", "/b.csv"}, "id,a,id,b\n1,x,1,z\n2,y,3,w\n"},
+	} {
+		var out, stderr bytes.Buffer
+		res := xan.New().Execute(context.Background(), append([]string{"xan"}, tc.args...), &command.Context{Cwd: "/", FS: fs, Stdin: strings.NewReader(""), Stdout: &out, Stderr: &stderr})
+		if res.ExitCode != 0 || stderr.Len() != 0 || out.String() != tc.want {
+			t.Fatalf("args %v: got %q stderr %q code %d want %q", tc.args, out.String(), stderr.String(), res.ExitCode, tc.want)
+		}
 	}
 }
 

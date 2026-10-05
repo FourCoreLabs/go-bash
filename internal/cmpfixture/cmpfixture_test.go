@@ -73,6 +73,41 @@ func TestLoad_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestLoad_RejectsInvalidSchema(t *testing.T) {
+	cases := map[string]string{
+		"upstream format":      `{"case-id":{"command":"echo hi","stdout":"hi\n","exitCode":0}}`,
+		"missing script":       `{"expected":{}}`,
+		"missing expected":     `{"script":"echo hi"}`,
+		"null script":          `{"script":null,"expected":{}}`,
+		"null expected":        `{"script":"","expected":null}`,
+		"null document":        `null`,
+		"unknown field":        `{"script":"","expected":{},"command":"echo hi"}`,
+		"unknown result field": `{"script":"","expected":{"exitStatus":0}}`,
+		"trailing object":      `{"script":"","expected":{}} {}`,
+	}
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "fixture.json")
+			if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := cmpfixture.Load(path); err == nil {
+				t.Fatal("invalid fixture accepted")
+			}
+		})
+	}
+}
+
+func TestLoad_ExplicitEmptyScript(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "fixture.json")
+	if err := os.WriteFile(path, []byte(`{"script":"","expected":{}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cmpfixture.Load(path); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // TestRunDir runs every .json fixture in a dir as a subtest.
 func TestRunDir(t *testing.T) {
 	dir := t.TempDir()

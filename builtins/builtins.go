@@ -32,6 +32,7 @@ import (
 	_ "github.com/mark3labs/go-bash/builtins/truecmd"
 	_ "github.com/mark3labs/go-bash/builtins/which"
 	_ "github.com/mark3labs/go-bash/builtins/whoami"
+	_ "github.com/mark3labs/go-bash/builtins/yes"
 
 	// Phase 10 Wave B: file operations.
 	_ "github.com/mark3labs/go-bash/builtins/chmod"
@@ -41,6 +42,7 @@ import (
 	_ "github.com/mark3labs/go-bash/builtins/ln"
 	_ "github.com/mark3labs/go-bash/builtins/ls"
 	_ "github.com/mark3labs/go-bash/builtins/mkdir"
+	_ "github.com/mark3labs/go-bash/builtins/mktemp"
 	_ "github.com/mark3labs/go-bash/builtins/mv"
 	_ "github.com/mark3labs/go-bash/builtins/readlink"
 	_ "github.com/mark3labs/go-bash/builtins/rm"

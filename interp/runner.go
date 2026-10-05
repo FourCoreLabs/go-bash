@@ -92,6 +92,11 @@ type Config struct {
 	// default behavior takes over.
 	CallHandler mvinterp.CallHandlerFunc
 
+	// OpenHandlerHook may supply a reader for a runtime-generated source
+	// filename. A nil reader falls through to the ordinary VFS handler.
+	// It must be concurrency-safe: process substitutions share handlers.
+	OpenHandlerHook func(context.Context, string, int, os.FileMode) (io.ReadWriteCloser, error)
+
 	// Registry is the command dispatch registry. Nil is treated as an
 	// empty registry — every non-mvdan-builtin command will resolve
 	// to `command not found` (ExitStatus 127). The runtime supplies a
@@ -204,7 +209,15 @@ func BuildRunner(ctx context.Context, cfg Config) (*mvinterp.Runner, error) {
 			sourceDepth: cfg.SourceDepth,
 			shopt:       cfg.Shopt,
 		})),
-		mvinterp.OpenHandler(openHandler(cfg.FS)),
+		mvinterp.OpenHandler(func(ctx context.Context, name string, flag int, perm os.FileMode) (io.ReadWriteCloser, error) {
+			if cfg.OpenHandlerHook != nil {
+				f, err := cfg.OpenHandlerHook(ctx, name, flag, perm)
+				if f != nil || err != nil {
+					return f, err
+				}
+			}
+			return openHandler(cfg.FS)(ctx, name, flag, perm)
+		}),
 		mvinterp.StatHandler(statHandler(cfg.FS)),
 		mvinterp.ReadDirHandler2(readDirHandler(cfg.FS, cfg.ReadDirHook)),
 	}

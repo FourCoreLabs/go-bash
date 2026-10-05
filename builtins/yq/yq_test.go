@@ -32,7 +32,7 @@ func TestYAMLToJSON(t *testing.T) {
 }
 
 func TestJSONToYAML(t *testing.T) {
-	out, _, code := run(t, `{"a":1,"b":"two"}`, "-i", "json", "-o", "yaml", ".")
+	out, _, code := run(t, `{"a":1,"b":"two"}`, "-p", "json", "-o", "yaml", ".")
 	if code != 0 {
 		t.Fatalf("code=%d", code)
 	}
@@ -53,7 +53,7 @@ func TestYAMLDefaultRoundTrip(t *testing.T) {
 }
 
 func TestRawOutput(t *testing.T) {
-	out, _, code := run(t, `{"a":"hello"}`, "-i", "json", "-o", "json", "-r", ".a")
+	out, _, code := run(t, `{"a":"hello"}`, "-p", "json", "-o", "json", "-r", ".a")
 	if code != 0 {
 		t.Fatalf("code=%d", code)
 	}
@@ -67,7 +67,7 @@ func TestTOMLToJSON(t *testing.T) {
 [owner]
 name = "bob"
 `
-	out, _, code := run(t, in, "-i", "toml", "-o", "json", "-c", ".")
+	out, _, code := run(t, in, "-p", "toml", "-o", "json", "-c", ".")
 	if code != 0 {
 		t.Fatalf("code=%d stderr-side: ?", code)
 	}
@@ -77,7 +77,7 @@ name = "bob"
 }
 
 func TestJSONToTOML(t *testing.T) {
-	out, _, code := run(t, `{"title":"yq"}`, "-i", "json", "-o", "toml", ".")
+	out, _, code := run(t, `{"title":"yq"}`, "-p", "json", "-o", "toml", ".")
 	if code != 0 {
 		t.Fatalf("code=%d", code)
 	}
@@ -88,7 +88,7 @@ func TestJSONToTOML(t *testing.T) {
 
 func TestCSVToJSON(t *testing.T) {
 	in := "a,b\n1,2\n3,4\n"
-	out, _, code := run(t, in, "-i", "csv", "-o", "json", "-c", ".")
+	out, _, code := run(t, in, "-p", "csv", "-o", "json", "-c", ".")
 	if code != 0 {
 		t.Fatalf("code=%d", code)
 	}
@@ -101,7 +101,7 @@ func TestCSVToJSON(t *testing.T) {
 
 func TestJSONToCSV(t *testing.T) {
 	in := `[{"a":"1","b":"2"},{"a":"3","b":"4"}]`
-	out, _, code := run(t, in, "-i", "json", "-o", "csv", ".")
+	out, _, code := run(t, in, "-p", "json", "-o", "csv", ".")
 	if code != 0 {
 		t.Fatalf("code=%d", code)
 	}
@@ -113,7 +113,7 @@ func TestJSONToCSV(t *testing.T) {
 
 func TestXMLToJSON(t *testing.T) {
 	in := `<root><a>1</a><a>2</a><b name="x">3</b></root>`
-	out, _, code := run(t, in, "-i", "xml", "-o", "json", "-c", ".")
+	out, _, code := run(t, in, "-p", "xml", "-o", "json", "-c", ".")
 	if code != 0 {
 		t.Fatalf("code=%d", code)
 	}
@@ -127,7 +127,7 @@ func TestXMLToJSON(t *testing.T) {
 
 func TestJSONToXML(t *testing.T) {
 	in := `{"root":{"a":"1","b":"two"}}`
-	out, _, code := run(t, in, "-i", "json", "-o", "xml", ".")
+	out, _, code := run(t, in, "-p", "json", "-o", "xml", ".")
 	if code != 0 {
 		t.Fatalf("code=%d", code)
 	}
@@ -138,7 +138,7 @@ func TestJSONToXML(t *testing.T) {
 
 func TestFilter(t *testing.T) {
 	in := `{"items":[{"n":1},{"n":2},{"n":3}]}`
-	out, _, code := run(t, in, "-i", "json", "-o", "json", "-c", "[.items[].n] | add")
+	out, _, code := run(t, in, "-p", "json", "-o", "json", "-c", "[.items[].n] | add")
 	if code != 0 {
 		t.Fatalf("code=%d", code)
 	}
@@ -149,19 +149,19 @@ func TestFilter(t *testing.T) {
 
 func TestCompact(t *testing.T) {
 	in := `{"a":1}`
-	out, _, _ := run(t, in, "-i", "json", "-o", "json", "-c", ".")
+	out, _, _ := run(t, in, "-p", "json", "-o", "json", "-c", ".")
 	if out != "{\"a\":1}\n" {
 		t.Errorf("got %q", out)
 	}
 }
 
-func TestPFlagSetsBoth(t *testing.T) {
+func TestPFlagSetsInputOnly(t *testing.T) {
 	in := `{"a":1}`
 	out, _, code := run(t, in, "-p", "json", "-c", ".")
 	if code != 0 {
 		t.Fatalf("code=%d", code)
 	}
-	if out != "{\"a\":1}\n" {
+	if out != "a: 1\n" {
 		t.Errorf("got %q", out)
 	}
 }
@@ -181,7 +181,7 @@ func TestUnknownOption(t *testing.T) {
 }
 
 func TestUnknownFormat(t *testing.T) {
-	_, e, code := run(t, "{}", "-i", "fnord", ".")
+	_, e, code := run(t, "{}", "-p", "fnord", ".")
 	if code != 2 || !strings.Contains(e, "unknown input format") {
 		t.Errorf("code=%d e=%q", code, e)
 	}
@@ -189,7 +189,7 @@ func TestUnknownFormat(t *testing.T) {
 
 func TestMultiDocYAML(t *testing.T) {
 	in := "a: 1\n---\na: 2\n"
-	out, _, code := run(t, in, "-i", "yaml", "-o", "json", "-c", ".a")
+	out, _, code := run(t, in, "-p", "yaml", "-o", "json", "-c", ".a")
 	if code != 0 {
 		t.Fatalf("code=%d", code)
 	}

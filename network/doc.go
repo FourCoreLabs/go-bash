@@ -34,6 +34,23 @@
 // DenyPrivateRanges layers on top of the allow-list: even an allowed
 // URL is denied if its resolved IPs are private/loopback/link-local.
 //
+// # Go configuration compatibility
+//
+// Header transforms accumulate across all matching allow-list entries in
+// configuration order; later transforms override earlier values for the same
+// header name. They are recomputed for each redirect destination.
+// AllowedMethods distinguishes nil (GET/HEAD defaults) from an empty slice
+// (deny every method), except in DangerouslyAllowFullAccess mode.
+//
+// Unlike optional fields in just-bash, the existing scalar Config fields
+// cannot distinguish omission from an explicit zero. For compatibility,
+// MaxRedirects=0 still means 20 (use -1 to return the first redirect response),
+// and Timeout=0 and MaxResponseSize=0 still select their package defaults.
+// DenyPrivateRanges defaults to false, not just-bash's production default of
+// true; production callers should explicitly enable it. Changing these field
+// types or silently reinterpreting existing configurations would break the
+// Go API or its behavior.
+//
 // # Reference (read-only)
 //
 // vercel-labs/just-bash, src/network/. The Go port preserves the TS

@@ -49,8 +49,8 @@ type node struct {
 	mode    os.FileMode
 	mtime   time.Time
 	atime   time.Time
-	content *fileContent        // file & lazy after materialization
-	target  string              // symlink
+	content *fileContent // file & lazy after materialization
+	target  string       // symlink
 	lazy    func(context.Context) ([]byte, error)
 	parent  *node
 	name    string
@@ -63,7 +63,9 @@ type FS struct {
 	root *node
 	// fsCtx is used by lazy providers when no caller context is
 	// available (e.g. via the iofs.FS reads from WalkDir).
-	fsCtx context.Context
+	fsCtx     context.Context
+	maxBytes  int64
+	usedBytes int64
 }
 
 // New constructs an empty FS with a single root directory at "/".
@@ -78,7 +80,21 @@ func New() *FS {
 		entries: map[string]*node{},
 	}
 	root.parent = root
-	return &FS{root: root, fsCtx: context.Background()}
+	return &FS{root: root, fsCtx: context.Background(), maxBytes: -1}
+}
+
+// SetMaxBytes sets a total regular-file content budget. Zero permits only empty files.
+func (m *FS) SetMaxBytes(limit int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if limit < 0 {
+		return errors.New("negative filesystem byte budget")
+	}
+	if m.usedBytes > limit {
+		return errors.New("filesystem byte budget below current usage")
+	}
+	m.maxBytes = limit
+	return nil
 }
 
 // Seed loads the given FileInit map into the FS, creating parent
@@ -379,6 +395,7 @@ func (m *FS) OpenFile(name string, flag int, perm os.FileMode) (gobashfs.File, e
 	}
 	if flag&os.O_TRUNC != 0 && (flag&(os.O_WRONLY|os.O_RDWR) != 0) {
 		n.content.mu.Lock()
+		m.usedBytes -= int64(len(n.content.data))
 		n.content.data = n.content.data[:0]
 		n.content.mu.Unlock()
 		n.mtime = time.Now()
@@ -404,6 +421,10 @@ func (m *FS) materializeLazy(n *node) error {
 	if err != nil {
 		return err
 	}
+	if m.maxBytes >= 0 && int64(len(data)) > m.maxBytes-m.usedBytes {
+		return errors.New("filesystem byte budget exceeded")
+	}
+	m.usedBytes += int64(len(data))
 	n.kind = kindFile
 	n.content = &fileContent{data: data}
 	n.lazy = nil
@@ -498,6 +519,7 @@ func (m *FS) Remove(name string) error {
 		return gobashfs.PathError("remove", name, errors.New("directory not empty"))
 	}
 	delete(n.parent.entries, n.name)
+	m.releaseTree(n)
 	return nil
 }
 
@@ -510,7 +532,9 @@ func (m *FS) RemoveAll(name string) error {
 	defer m.mu.Unlock()
 	clean := gobashfs.Clean(translateOpenName(name))
 	if clean == "/" {
-		// Reset the root.
+		for _, child := range m.root.entries {
+			m.releaseTree(child)
+		}
 		m.root.entries = map[string]*node{}
 		return nil
 	}
@@ -522,7 +546,36 @@ func (m *FS) RemoveAll(name string) error {
 		return err
 	}
 	delete(n.parent.entries, n.name)
+	m.releaseTree(n)
 	return nil
+}
+
+func (m *FS) releaseTree(n *node) {
+	if n.kind == kindFile && n.content != nil {
+		referenced := false
+		var walk func(*node)
+		walk = func(cur *node) {
+			for _, child := range cur.entries {
+				if child.kind == kindFile && child.content == n.content {
+					referenced = true
+				}
+				if child.kind == kindDir {
+					walk(child)
+				}
+			}
+		}
+		walk(m.root)
+		if !referenced {
+			n.content.mu.Lock()
+			m.usedBytes -= int64(len(n.content.data))
+			n.content.mu.Unlock()
+		}
+	}
+	if n.kind == kindDir {
+		for _, child := range n.entries {
+			m.releaseTree(child)
+		}
+	}
 }
 
 // Rename moves oldpath to newpath. Cross-directory renames are allowed.
@@ -548,6 +601,9 @@ func (m *FS) Rename(oldpath, newpath string) error {
 	// Detach from src parent.
 	delete(src.parent.entries, src.name)
 	// Replace dst if it exists.
+	if dst := dstParent.entries[dstBase]; dst != nil {
+		m.releaseTree(dst)
+	}
 	src.parent = dstParent
 	src.name = dstBase
 	dstParent.entries[dstBase] = src
@@ -861,13 +917,23 @@ func (f *fileHandle) Write(p []byte) (int, error) {
 	if !f.writeOK {
 		return 0, errors.New("file not open for write")
 	}
+	// Lock order is FS then content everywhere: tree/accounting operations
+	// already hold fs.mu before inspecting content, so taking content first
+	// here would deadlock against OpenFile/Remove/Truncate.
+	f.fs.mu.Lock()
+	defer f.fs.mu.Unlock()
 	f.n.content.mu.Lock()
 	defer f.n.content.mu.Unlock()
 	if f.append {
 		f.pos = int64(len(f.n.content.data))
 	}
 	end := f.pos + int64(len(p))
-	if end > int64(len(f.n.content.data)) {
+	oldLen := int64(len(f.n.content.data))
+	if end > oldLen {
+		if f.fs.maxBytes >= 0 && end-oldLen > f.fs.maxBytes-f.fs.usedBytes {
+			return 0, errors.New("filesystem byte budget exceeded")
+		}
+		f.fs.usedBytes += end - oldLen
 		grow := make([]byte, end)
 		copy(grow, f.n.content.data)
 		f.n.content.data = grow
@@ -914,6 +980,9 @@ func (f *fileHandle) Truncate(size int64) error {
 	if !f.writeOK {
 		return errors.New("file not open for write")
 	}
+	// Keep the same fs.mu -> content.mu order as OpenFile and Write.
+	f.fs.mu.Lock()
+	defer f.fs.mu.Unlock()
 	f.n.content.mu.Lock()
 	defer f.n.content.mu.Unlock()
 	if size < 0 {
@@ -921,8 +990,13 @@ func (f *fileHandle) Truncate(size int64) error {
 	}
 	cur := int64(len(f.n.content.data))
 	if size < cur {
+		f.fs.usedBytes -= cur - size
 		f.n.content.data = f.n.content.data[:size]
 	} else if size > cur {
+		if f.fs.maxBytes >= 0 && size-cur > f.fs.maxBytes-f.fs.usedBytes {
+			return errors.New("filesystem byte budget exceeded")
+		}
+		f.fs.usedBytes += size - cur
 		grow := make([]byte, size)
 		copy(grow, f.n.content.data)
 		f.n.content.data = grow

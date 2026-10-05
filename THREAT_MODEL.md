@@ -157,7 +157,7 @@ This entire boundary is structurally safe (see §8).
 |---|---|---|---|
 | Token bomb | Script with pathological tokenization | mvdan/sh parser is bounded; `MaxTokens` cap in go-bash wrapper | `parser/limits.go` |
 | Parser stack overflow | Deeply nested constructs | `MaxParserDepth` (200) | `parser/limits.go` |
-| Oversized input | Very large scripts | `MaxInputSize` (1 MiB) | `parser/limits.go` |
+| Oversized input | Very large scripts | `MaxInputSize` (default 1 MiB; configurable via `ExecutionLimits.MaxInputSize`) | `parser/limits.go` |
 | Heredoc bomb | Huge heredoc content | `MaxHeredocSize` (10 MiB) | `limits.go` |
 | Malformed input | Invalid bash syntax | Parser returns `*ParseError`, doesn't crash | `parser/parser.go` |
 

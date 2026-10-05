@@ -274,10 +274,7 @@ func checkArrayElems(file *syntax.File, limit int) *ExecutionLimitError {
 				total++
 				continue
 			}
-			c := wordBraceCardinality(el.Value, limit)
-			if c < 1 {
-				c = 1
-			}
+			c := max(wordBraceCardinality(el.Value, limit), 1)
 			total += c
 			if total > limit {
 				tripped = &ExecutionLimitError{Limit: "MaxArrayElements", Value: limit}

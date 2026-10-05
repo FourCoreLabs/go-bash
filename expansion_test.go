@@ -242,10 +242,10 @@ func TestPhase6BraceExpansionAbsurdSequenceSaturates(t *testing.T) {
 func TestPhase6GlobBasic(t *testing.T) {
 	b, err := gobash.New(gobash.BashOptions{
 		Files: map[string]gbfs.FileInit{
-			"/work/a.txt":      {Content: []byte("a")},
-			"/work/b.txt":      {Content: []byte("b")},
-			"/work/c.log":      {Content: []byte("c")},
-			"/work/sub/d.txt":  {Content: []byte("d")},
+			"/work/a.txt":     {Content: []byte("a")},
+			"/work/b.txt":     {Content: []byte("b")},
+			"/work/c.log":     {Content: []byte("c")},
+			"/work/sub/d.txt": {Content: []byte("d")},
 		},
 		Cwd: "/work",
 	})
@@ -279,7 +279,7 @@ func TestPhase6GlobMaxGlobOperations(t *testing.T) {
 	// MaxGlobOperations=5. We override the limit to a tiny value and
 	// trigger several ReadDirs.
 	files := map[string]gbfs.FileInit{}
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		files[fmt.Sprintf("/work/d%d", i)] = gbfs.FileInit{Dir: true}
 		files[fmt.Sprintf("/work/d%d/x.txt", i)] = gbfs.FileInit{Content: []byte("x")}
 	}

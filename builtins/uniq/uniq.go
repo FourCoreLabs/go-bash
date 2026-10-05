@@ -139,7 +139,7 @@ run:
 		if o.allDup {
 			for _, l := range g.lines {
 				if o.count {
-					_, _ = fmt.Fprintf(w, "%7d %s\n", g.count, l)
+					_, _ = fmt.Fprintf(w, "%4d %s\n", g.count, l)
 				} else {
 					_, _ = fmt.Fprintln(w, l)
 				}
@@ -147,7 +147,7 @@ run:
 			continue
 		}
 		if o.count {
-			_, _ = fmt.Fprintf(w, "%7d %s\n", g.count, g.line)
+			_, _ = fmt.Fprintf(w, "%4d %s\n", g.count, g.line)
 		} else {
 			_, _ = fmt.Fprintln(w, g.line)
 		}

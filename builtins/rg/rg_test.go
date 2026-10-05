@@ -39,7 +39,7 @@ func parentDir(p string) string {
 func TestBasic(t *testing.T) {
 	files := map[string]string{"/d/a.txt": "foo\nbar\nfoobar\n"}
 	out, _, code := runCmd(t, files, "foo", "/d")
-	if code != 0 || !strings.Contains(out, "1:foo") {
+	if code != 0 || !strings.Contains(out, "/d/a.txt:1:foo") {
 		t.Errorf("out=%q exit=%d", out, code)
 	}
 }

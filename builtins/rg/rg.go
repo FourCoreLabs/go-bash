@@ -1,5 +1,5 @@
 // Package rg implements the `rg` (ripgrep) built-in subset (/ Wave D). Only the flags just-bash supports are implemented:
-// -i -v -n -c -l -A -B -C -e -t TYPE -g GLOB --hidden --no-ignore --json.
+// Includes smartcase, ignore files, and common matching/traversal flags.
 //
 // The `--json` flag emits JSON Lines matching ripgrep's
 // `begin`/`match`/`end`/`summary` shape.
@@ -12,9 +12,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path"
 	"regexp"
 	"sort"
+	"strconv"
 	stdstrings "strings"
 	"time"
 
@@ -28,7 +30,7 @@ Recursively search the current directory for lines matching PATTERNS.
 
   -i, --ignore-case        ignore case distinctions
   -v, --invert-match       invert match
-  -n, --line-number        print line numbers (default)
+  -n, --line-number        print line numbers
   -N, --no-line-number     suppress line numbers
   -c, --count              count matching lines per file
   -l, --files-with-matches print only matching files
@@ -64,26 +66,31 @@ var fileTypes = map[string][]string{
 }
 
 type opts struct {
-	patterns     []string
-	ignoreCase   bool
-	invert       bool
-	lineNumber   bool
-	noLineNumber bool
-	countOnly    bool
-	filesOnly    bool
-	after        int
-	before       int
-	types        []string
-	globs        []string
-	hidden       bool
-	asJSON       bool
+	smartCase, fixed, word, wholeLine, onlyMatching, quiet, noIgnore, follow bool
+	patternFiles                                                             []string
+	maxCount, maxDepth                                                       int
+	replacement                                                              *string
+	patterns                                                                 []string
+	ignoreCase                                                               bool
+	invert                                                                   bool
+	lineNumber                                                               bool
+	noLineNumber                                                             bool
+	countOnly                                                                bool
+	filesOnly                                                                bool
+	after                                                                    int
+	before                                                                   int
+	types                                                                    []string
+	globs                                                                    []string
+	hidden                                                                   bool
+	asJSON                                                                   bool
 }
 
 // New returns the rg command.
 func New() command.Command { return command.Define("rg", run) }
 
 func run(_ context.Context, args []string, c *command.Context) command.Result {
-	o := opts{lineNumber: true}
+	o := opts{smartCase: true, maxDepth: 256}
+	args = normalizeArgs(args)
 	var paths []string
 	i := 1
 	for ; i < len(args); i++ {
@@ -94,6 +101,45 @@ func run(_ context.Context, args []string, c *command.Context) command.Result {
 			return command.Result{ExitCode: 0}
 		case a == "-i", a == "--ignore-case":
 			o.ignoreCase = true
+			o.smartCase = false
+		case a == "-s", a == "--case-sensitive":
+			o.ignoreCase, o.smartCase = false, false
+		case a == "-S", a == "--smart-case":
+			o.ignoreCase, o.smartCase = false, true
+		case a == "-F", a == "--fixed-strings":
+			o.fixed = true
+		case a == "-w", a == "--word-regexp":
+			o.word = true
+		case a == "-x", a == "--line-regexp":
+			o.wholeLine = true
+		case a == "-o", a == "--only-matching":
+			o.onlyMatching = true
+		case a == "-q", a == "--quiet":
+			o.quiet = true
+		case a == "-L", a == "--follow":
+			o.follow = true
+		case a == "-f", a == "--file", a == "-m", a == "--max-count", a == "--max-depth", a == "-r", a == "--replace":
+			if i+1 >= len(args) {
+				return builtinutil.UsageError(c.Stderr, usage)
+			}
+			i++
+			switch a {
+			case "-f", "--file":
+				o.patternFiles = append(o.patternFiles, args[i])
+			case "-r", "--replace":
+				value := args[i]
+				o.replacement = &value
+			default:
+				n, err := parseInt(args[i])
+				if err != nil {
+					return builtinutil.UsageError(c.Stderr, usage)
+				}
+				if a == "--max-depth" {
+					o.maxDepth = n
+				} else {
+					o.maxCount = n
+				}
+			}
 		case a == "-v", a == "--invert-match":
 			o.invert = true
 		case a == "-n", a == "--line-number":
@@ -157,7 +203,7 @@ func run(_ context.Context, args []string, c *command.Context) command.Result {
 		case a == "--hidden":
 			o.hidden = true
 		case a == "--no-ignore":
-			// we never honor .gitignore — no-op.
+			o.noIgnore = true
 		case a == "--json":
 			o.asJSON = true
 		case a == "--":
@@ -171,7 +217,7 @@ func run(_ context.Context, args []string, c *command.Context) command.Result {
 		}
 	}
 run:
-	if len(o.patterns) == 0 {
+	if len(o.patterns) == 0 && len(o.patternFiles) == 0 {
 		if len(paths) == 0 {
 			return builtinutil.UsageError(c.Stderr, usage)
 		}
@@ -182,11 +228,54 @@ run:
 		paths = []string{"."}
 	}
 
+	for _, name := range o.patternFiles {
+		var data []byte
+		var err error
+		if name == "-" {
+			if c.Stdin != nil {
+				data, err = io.ReadAll(c.Stdin)
+			}
+		} else {
+			data, err = c.FS.ReadFile(builtinutil.ResolvePath(c.Cwd, name))
+		}
+		if err != nil {
+			return builtinutil.Errorf(c.Stderr, "rg", 2, "%s: No such file or directory", name)
+		}
+		for line := range stdstrings.SplitSeq(string(data), "\n") {
+			if line != "" {
+				o.patterns = append(o.patterns, line)
+			}
+		}
+	}
+	if len(o.patterns) == 0 {
+		return command.Result{ExitCode: 1}
+	}
+	if o.smartCase {
+		o.ignoreCase = true
+		for _, p := range o.patterns {
+			if stdstrings.ContainsAny(p, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+				o.ignoreCase = false
+				break
+			}
+		}
+	}
 	flags := ""
 	if o.ignoreCase {
 		flags = "(?i)"
 	}
-	pat := stdstrings.Join(o.patterns, "|")
+	patterns := append([]string(nil), o.patterns...)
+	if o.fixed {
+		for i := range patterns {
+			patterns[i] = regexp.QuoteMeta(patterns[i])
+		}
+	}
+	pat := "(?:" + stdstrings.Join(patterns, "|") + ")"
+	if o.wholeLine {
+		pat = "^(?:" + pat + ")$"
+	}
+	if o.word {
+		pat = `\b(?:` + pat + `)\b`
+	}
 	re, err := regexp.Compile(flags + pat)
 	if err != nil {
 		return builtinutil.Errorf(c.Stderr, "rg", 2, "regex: %v", err)
@@ -211,9 +300,17 @@ run:
 
 	var files []string
 	for _, p := range paths {
-		collect(c, p, p, o.hidden, &files)
+		collect(c, p, p, &o, &files)
 	}
 	sort.Strings(files)
+	// ripgrep prefixes paths when searching a directory (or multiple inputs),
+	// but suppresses the prefix when a single explicit file is searched.
+	showPath := len(paths) != 1
+	if len(paths) == 1 {
+		if fi, err := c.FS.Stat(builtinutil.ResolvePath(c.Cwd, paths[0])); err == nil {
+			showPath = fi.IsDir()
+		}
+	}
 
 	anyMatch := false
 	for _, f := range files {
@@ -252,8 +349,11 @@ run:
 		if skip {
 			continue
 		}
-		if searchFile(c, &o, re, f) {
+		if searchFile(c, &o, re, f, showPath) {
 			anyMatch = true
+			if o.quiet {
+				break
+			}
 		}
 	}
 	if anyMatch {
@@ -262,7 +362,7 @@ run:
 	return command.Result{ExitCode: 1}
 }
 
-func collect(c *command.Context, abs, display string, hidden bool, out *[]string) {
+func collect(c *command.Context, abs, display string, o *opts, out *[]string) {
 	abs = builtinutil.ResolvePath(c.Cwd, abs)
 	fi, err := c.FS.Stat(abs)
 	if err != nil {
@@ -272,30 +372,52 @@ func collect(c *command.Context, abs, display string, hidden bool, out *[]string
 		*out = append(*out, display)
 		return
 	}
-	walk(c, abs, display, hidden, out)
+	walk(c, abs, display, o, 0, map[string]bool{}, out)
 }
 
-func walk(c *command.Context, abs, display string, hidden bool, out *[]string) {
+func walk(c *command.Context, abs, display string, o *opts, depth int, active map[string]bool, out *[]string) {
+	if depth >= o.maxDepth {
+		return
+	}
+	identity, err := c.FS.Realpath(abs)
+	if err != nil || active[identity] {
+		return
+	}
+	active[identity] = true
+	defer delete(active, identity)
 	entries, err := c.FS.ReadDir(abs)
 	if err != nil {
 		return
 	}
 	for _, e := range entries {
 		name := e.Name()
-		if !hidden && stdstrings.HasPrefix(name, ".") {
+		childAbs, childDisp := path.Join(abs, name), path.Join(display, name)
+		fi, err := c.FS.Lstat(childAbs)
+		if err != nil {
 			continue
 		}
-		childAbs := path.Join(abs, name)
-		childDisp := path.Join(display, name)
-		if e.IsDir() {
-			walk(c, childAbs, childDisp, hidden, out)
+		if fi.Mode()&os.ModeSymlink != 0 {
+			if !o.follow {
+				continue
+			}
+			fi, err = c.FS.Stat(childAbs)
+			if err != nil {
+				continue
+			}
+		}
+		ignored, whitelisted := ignoreStatus(c, childAbs, fi.IsDir(), o.noIgnore)
+		if ignored || (!o.hidden && stdstrings.HasPrefix(name, ".") && !whitelisted) {
 			continue
 		}
-		*out = append(*out, childDisp)
+		if fi.IsDir() {
+			walk(c, childAbs, childDisp, o, depth+1, active, out)
+		} else if fi.Mode().IsRegular() {
+			*out = append(*out, childDisp)
+		}
 	}
 }
 
-func searchFile(c *command.Context, o *opts, re *regexp.Regexp, name string) bool {
+func searchFile(c *command.Context, o *opts, re *regexp.Regexp, name string, showPath bool) bool {
 	abs := builtinutil.ResolvePath(c.Cwd, name)
 	data, err := c.FS.ReadFile(abs)
 	if err != nil {
@@ -318,6 +440,12 @@ func searchFile(c *command.Context, o *opts, re *regexp.Regexp, name string) boo
 				conv = append(conv, [2]int{s[0], s[1]})
 			}
 			matchSpans[idx] = conv
+			if o.quiet {
+				return true
+			}
+			if o.maxCount > 0 && len(matchLines) >= o.maxCount {
+				break
+			}
 		}
 	}
 
@@ -333,15 +461,17 @@ func searchFile(c *command.Context, o *opts, re *regexp.Regexp, name string) boo
 		return len(matchLines) > 0
 	}
 	if o.countOnly {
-		_, _ = fmt.Fprintf(c.Stdout, "%s:%d\n", name, len(matchLines))
+		if showPath {
+			_, _ = fmt.Fprintf(c.Stdout, "%s:%d\n", name, len(matchLines))
+		} else {
+			_, _ = fmt.Fprintf(c.Stdout, "%d\n", len(matchLines))
+		}
 		return len(matchLines) > 0
 	}
 	if len(matchLines) == 0 {
 		return false
 	}
 
-	// Header is the filename per ripgrep convention (only when context spans).
-	_, _ = fmt.Fprintf(c.Stdout, "%s\n", name)
 	// Determine printed-line set with before/after context.
 	printed := make(map[int]bool)
 	for _, l := range matchLines {
@@ -362,19 +492,44 @@ func searchFile(c *command.Context, o *opts, re *regexp.Regexp, name string) boo
 			_, _ = io.WriteString(c.Stdout, "--\n")
 		}
 		isMatch := matchSpans[k] != nil
+		text := lines[k]
+		if o.onlyMatching && isMatch {
+			for _, span := range matchSpans[k] {
+				if span[0] == span[1] {
+					continue
+				}
+				part := text[span[0]:span[1]]
+				if o.replacement != nil {
+					part = re.ReplaceAllString(part, *o.replacement)
+				}
+				if o.lineNumber {
+					_, _ = fmt.Fprintf(c.Stdout, "%d:%s\n", k+1, part)
+				} else {
+					_, _ = fmt.Fprintln(c.Stdout, part)
+				}
+			}
+			continue
+		}
+		if o.replacement != nil && isMatch {
+			text = re.ReplaceAllString(text, *o.replacement)
+		}
 		sep := "-"
 		if isMatch {
 			sep = ":"
 		}
-		if o.lineNumber && !o.noLineNumber {
-			_, _ = fmt.Fprintf(c.Stdout, "%d%s%s\n", k+1, sep, lines[k])
+		if showPath {
+			if !o.noLineNumber {
+				_, _ = fmt.Fprintf(c.Stdout, "%s:%d%s%s\n", name, k+1, sep, text)
+			} else {
+				_, _ = fmt.Fprintf(c.Stdout, "%s:%s\n", name, text)
+			}
+		} else if o.lineNumber && !o.noLineNumber {
+			_, _ = fmt.Fprintf(c.Stdout, "%d%s%s\n", k+1, sep, text)
 		} else {
-			_, _ = fmt.Fprintf(c.Stdout, "%s\n", lines[k])
+			_, _ = fmt.Fprintf(c.Stdout, "%s\n", text)
 		}
 		prev = k
 	}
-	// Trailing newline between files (ripgrep convention).
-	_, _ = io.WriteString(c.Stdout, "\n")
 	return true
 }
 
@@ -411,11 +566,11 @@ func emitJSON(w io.Writer, name string, lines []string, matchLines []int, spans 
 		encode(w, map[string]any{
 			"type": "match",
 			"data": map[string]any{
-				"path":             map[string]any{"text": name},
-				"lines":            linesField,
-				"line_number":      idx + 1,
-				"absolute_offset":  0,
-				"submatches":       subs,
+				"path":            map[string]any{"text": name},
+				"lines":           linesField,
+				"line_number":     idx + 1,
+				"absolute_offset": 0,
+				"submatches":      subs,
 			},
 		})
 	}
@@ -426,13 +581,13 @@ func emitJSON(w io.Writer, name string, lines []string, matchLines []int, spans 
 		"data": map[string]any{
 			"path": map[string]any{"text": name},
 			"stats": map[string]any{
-				"elapsed":          map[string]any{"secs": int(dur.Seconds()), "nanos": int(dur.Nanoseconds() % 1e9), "human": dur.String()},
-				"searches":         1,
+				"elapsed":             map[string]any{"secs": int(dur.Seconds()), "nanos": int(dur.Nanoseconds() % 1e9), "human": dur.String()},
+				"searches":            1,
 				"searches_with_match": boolToInt(matched > 0),
-				"bytes_searched":   sumBytes(lines),
-				"bytes_printed":    0,
-				"matched_lines":    matched,
-				"matches":          matched,
+				"bytes_searched":      sumBytes(lines),
+				"bytes_printed":       0,
+				"matched_lines":       matched,
+				"matches":             matched,
 			},
 		},
 	})
@@ -487,17 +642,49 @@ func splitLines(data []byte) []string {
 }
 
 func parseInt(s string) (int, error) {
-	n := 0
-	if s == "" {
-		return 0, fmt.Errorf("empty")
-	}
-	for _, ch := range s {
-		if ch < '0' || ch > '9' {
-			return 0, fmt.Errorf("not a number: %q", s)
-		}
-		n = n*10 + int(ch-'0')
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 0 {
+		return 0, fmt.Errorf("invalid number: %q", s)
 	}
 	return n, nil
+}
+
+// Normalize attached values and short flag bundles before parsing.
+func normalizeArgs(args []string) []string {
+	out := []string{args[0]}
+	values := "ABCetgfm r"
+	for i := 1; i < len(args); i++ {
+		a := args[i]
+		if a == "--" {
+			out = append(out, args[i:]...)
+			break
+		}
+		if stdstrings.HasPrefix(a, "--") {
+			if key, value, ok := stdstrings.Cut(a, "="); ok {
+				out = append(out, key, value)
+			} else {
+				out = append(out, a)
+			}
+		} else if stdstrings.HasPrefix(a, "-") && len(a) > 2 {
+			for j := 1; j < len(a); j++ {
+				out = append(out, "-"+a[j:j+1])
+				if stdstrings.ContainsRune(values, rune(a[j])) {
+					if j+1 < len(a) {
+						out = append(out, a[j+1:])
+					}
+					break
+				}
+			}
+		} else {
+			out = append(out, a)
+		}
+		// A separate option value must not itself be normalized.
+		if len(out) > 0 && (stdstrings.Contains(values, stdstrings.TrimPrefix(out[len(out)-1], "-")) && len(out[len(out)-1]) == 2 || out[len(out)-1] == "--file" || out[len(out)-1] == "--replace" || out[len(out)-1] == "--max-count" || out[len(out)-1] == "--max-depth" || out[len(out)-1] == "--regexp" || out[len(out)-1] == "--glob" || out[len(out)-1] == "--type") && i+1 < len(args) {
+			i++
+			out = append(out, args[i])
+		}
+	}
+	return out
 }
 
 func init() { command.RegisterBuiltin(New()) }
