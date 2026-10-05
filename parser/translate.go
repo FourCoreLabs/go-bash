@@ -12,7 +12,8 @@ import (
 // translator owns per-Parse state: depth counter for MaxParserDepth,
 // running heredoc-size budget.
 type translator struct {
-	depth int
+	depth          int
+	maxHeredocSize int
 }
 
 // enter / leave bracket every recursive call site. Returns an error if
@@ -532,9 +533,9 @@ func (t *translator) redirection(r *syntax.Redirect) (*ast.Redirection, error) {
 	}
 	if r.Hdoc != nil {
 		body := wordRawString(r.Hdoc)
-		if len(body) > MaxHeredocSize {
+		if len(body) > t.maxHeredocSize {
 			return nil, &ParseError{
-				Msg: fmt.Sprintf("heredoc body too large: %d bytes (max %d)", len(body), MaxHeredocSize),
+				Msg: fmt.Sprintf("heredoc body too large: %d bytes (max %d)", len(body), t.maxHeredocSize),
 			}
 		}
 		tag := ""

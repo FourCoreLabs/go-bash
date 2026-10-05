@@ -50,7 +50,6 @@ func TestCompileAllowList_RejectsMissingSchemeOrHost(t *testing.T) {
 		{"no host", []AllowedURLEntry{{URL: "https:///path"}}, "missing host"},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			_, err := compileAllowList(tc.entries)
@@ -73,7 +72,6 @@ func TestCompileAllowList_RejectsEncodedSlash(t *testing.T) {
 		"https://api.example.com/v1%5Cadmin",
 	}
 	for _, urlStr := range cases {
-		urlStr := urlStr
 		t.Run(urlStr, func(t *testing.T) {
 			t.Parallel()
 			_, err := compileAllowList([]AllowedURLEntry{{URL: urlStr}})
@@ -104,13 +102,12 @@ func TestAllowEntry_Matches(t *testing.T) {
 		{"https://api.example.com/v1/", true},
 		{"https://api.example.com/v2/users", false},
 		{"https://api.example.com/", false},
-		{"http://api.example.com/v1/users", false},  // wrong scheme
-		{"https://other.example.com/v1/users", false}, // wrong host
-		{"https://API.EXAMPLE.COM/v1/users", true},   // case-insensitive host
+		{"http://api.example.com/v1/users", false},     // wrong scheme
+		{"https://other.example.com/v1/users", false},  // wrong host
+		{"https://API.EXAMPLE.COM/v1/users", true},     // case-insensitive host
 		{"https://api.example.com:443/v1/users", true}, // default port
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.url, func(t *testing.T) {
 			t.Parallel()
 			u, err := url.Parse(tc.url)
@@ -188,5 +185,22 @@ func TestNewSecureFetch_CompileErrorSurfacesOnDo(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "missing scheme") {
 		t.Errorf("err = %v, want missing scheme", err)
+	}
+}
+
+func TestConfig_EmptyMethodsAndScalarDefaults(t *testing.T) {
+	t.Parallel()
+	in := &Config{AllowedMethods: []string{}}
+	out := in.withDefaults()
+	if out.AllowedMethods == nil || len(out.AllowedMethods) != 0 {
+		t.Errorf("explicit empty methods = %v, want non-nil empty", out.AllowedMethods)
+	}
+	// Scalar zero values cannot encode explicit vs omitted settings. Keep
+	// the existing public API behavior rather than silently changing policy.
+	if out.MaxRedirects != DefaultMaxRedirects || out.Timeout != DefaultTimeout || out.MaxResponseSize != DefaultMaxResponseSize || out.DenyPrivateRanges {
+		t.Errorf("scalar defaults changed: %+v", out)
+	}
+	if in.MaxRedirects != 0 || in.Timeout != 0 || in.MaxResponseSize != 0 {
+		t.Errorf("input Config mutated: %+v", in)
 	}
 }

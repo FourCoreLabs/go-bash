@@ -4,11 +4,15 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"maps"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"unicode"
 
 	"mvdan.cc/sh/v3/interp"
 	"mvdan.cc/sh/v3/syntax"
@@ -133,10 +137,25 @@ const loopSentinelName = "__gobash_loop_iter__"
 // non-nil error only when option validation fails (no failure modes exist
 // in Phases 1–2).
 func New(opts BashOptions) (*Bash, error) {
+	limits := ResolveLimits(opts.ExecutionLimits)
+	// Deprecated non-zero knobs take precedence over ExecutionLimits, as upstream.
+	// Zero cannot express an override in the legacy Go value fields; use a pointer.
+	if opts.MaxCallDepth != 0 {
+		limits.MaxCallDepth = opts.MaxCallDepth
+	}
+	if opts.MaxCommandCount != 0 {
+		limits.MaxCommandCount = opts.MaxCommandCount
+	}
+	if opts.MaxLoopIterations != 0 {
+		limits.MaxLoopIterations = opts.MaxLoopIterations
+	}
+	if err := validateAPILimits(limits); err != nil {
+		return nil, err
+	}
 	b := &Bash{
 		env:          cloneEnv(opts.Env),
 		cwd:          opts.Cwd,
-		limits:       ResolveLimits(opts.ExecutionLimits),
+		limits:       limits,
 		shellOptions: opts.ShellOptions,
 		sleep:        opts.Sleep,
 		logger:       opts.Logger,
@@ -157,7 +176,11 @@ func New(opts BashOptions) (*Bash, error) {
 	if opts.FS != nil {
 		b.fs = opts.FS
 	} else {
-		b.fs = memfs.New()
+		m := memfs.New()
+		if err := m.SetMaxBytes(int64(limits.MaxFileSystemBytes)); err != nil {
+			return nil, err
+		}
+		b.fs = m
 	}
 	// /dev/null must discard writes and read as empty for every
 	// consumer — shell redirections and built-ins alike. This is
@@ -386,8 +409,16 @@ func (b *Bash) Exec(ctx context.Context, script string, opts ExecOptions) (BashE
 // land and want sub-shell semantics richer than the Phase 10 Wave G
 // `bash -c` form.
 func (b *Bash) execLocked(ctx context.Context, script string, opts ExecOptions) (BashExecResult, error) {
-
 	var result BashExecResult
+	scope, nested := executionScopeFromContext(ctx)
+	if !nested {
+		scope = newExecutionScope()
+		ctx = context.WithValue(ctx, executionScopeKey{}, scope)
+	}
+
+	if !opts.RawScript {
+		script = normalizeAPIScript(script)
+	}
 
 	// The spec: when transform plugins are registered, run the
 	// pipeline first. The pipeline parses, dispatches each plugin in
@@ -413,7 +444,10 @@ func (b *Bash) execLocked(ctx context.Context, script string, opts ExecOptions) 
 	// MaxTokens, MaxParserDepth, MaxHeredocSize) are enforced before we
 	// hand anything to mvdan/sh's interpreter. parser.Parse returns
 	// *parser.ParseError on failure, which is aliased to gobash.ParseError.
-	parsed, err := parser.Parse(script)
+	parsed, err := parser.ParseWithLimits(script, parser.Limits{
+		MaxInputSize:   b.limits.MaxInputSize,
+		MaxHeredocSize: b.limits.MaxHeredocSize,
+	})
 	if err != nil {
 		return result, err
 	}
@@ -465,36 +499,30 @@ func (b *Bash) execLocked(ctx context.Context, script string, opts ExecOptions) 
 	// of context.Canceled.
 	execCtx, cancelExec := context.WithCancel(ctx)
 	defer cancelExec()
+	if !nested {
+		scope.setCancel(cancelExec)
+	}
 
-	var (
-		limitOnce sync.Once
-		limitErr  *ExecutionLimitError
-	)
 	trip := func(e *ExecutionLimitError) *ExecutionLimitError {
-		limitOnce.Do(func() {
-			limitErr = e
-			cancelExec()
-		})
+		scope.trip(e, cancelExec)
 		return e
 	}
 
 	// MaxOutputSize: a single Tracker shared by both writers so the cap
 	// is the combined stdout+stderr budget.
-	outTracker := ringbuf.NewTracker(int64(b.limits.MaxOutputSize), func(limit int64) error {
+	outTracker := scope.outputTracker(int64(b.limits.MaxOutputSize), func(limit int64) error {
 		return trip(&ExecutionLimitError{Limit: "MaxOutputSize", Value: int(limit)})
 	})
-	stdoutW := ringbuf.NewLimitedWriter(stdout, outTracker)
-	stderrW := ringbuf.NewLimitedWriter(stderr, outTracker)
+	stdoutW := ringbuf.WrapLimitedWriter(stdout, outTracker)
+	stderrW := ringbuf.WrapLimitedWriter(stderr, outTracker)
 
 	// MaxCommandCount, MaxLoopIterations, MaxCallDepth.
 	// These counters can be touched concurrently when a script uses
 	// process substitution (mvdan/sh runs the substituted command in
 	// a goroutine that shares the same CallHandler closure), so we
 	// guard them with atomic ops.
-	var (
-		cmdCount  atomic.Int64
-		loopIters atomic.Int64
-	)
+	cmdCount := &scope.cmdCount
+	loopIters := &scope.loopIters
 	// runnerRef is closed over by the CallHandler so it can inspect
 	// r.Funcs to decide whether args[0] is a function call (and hence
 	// participates in MaxCallDepth accounting). It is set after
@@ -503,7 +531,16 @@ func (b *Bash) execLocked(ctx context.Context, script string, opts ExecOptions) 
 	var runnerRef *interp.Runner
 
 	limits := b.limits
-	callHandler := func(_ context.Context, args []string) ([]string, error) {
+	extraArgs := append([]string(nil), opts.Args...)
+	var argsConsumed atomic.Bool
+	dynamic := &dynamicScripts{b: b, trip: trip, isFunc: func(name string) bool {
+		if runnerRef == nil {
+			return false
+		}
+		_, ok := runnerRef.Funcs[name]
+		return ok
+	}}
+	callHandler := func(callCtx context.Context, args []string) ([]string, error) {
 		if len(args) == 0 {
 			return args, nil
 		}
@@ -518,6 +555,14 @@ func (b *Bash) execLocked(ctx context.Context, script string, opts ExecOptions) 
 				})
 			}
 			return []string{":"}, nil
+		}
+		// Inject literal argv only at the first real dispatch, after expansion.
+		// Substitutions and pipelines share this closure; atomics ensure exactly
+		// one dispatch consumes the arguments, never an instrumentation sentinel.
+		if argsConsumed.CompareAndSwap(false, true) && len(extraArgs) > 0 {
+			injected := make([]string, 0, len(args)+len(extraArgs))
+			injected = append(injected, args...)
+			args = append(injected, extraArgs...)
 		}
 		// The spec MaxStringLength: cap the size of any single argument
 		// reaching a command. mvdan/sh produces these via the full
@@ -574,7 +619,7 @@ func (b *Bash) execLocked(ctx context.Context, script string, opts ExecOptions) 
 				}
 			}
 		}
-		return args, nil
+		return dynamic.call(callCtx, args)
 	}
 
 	// MaxGlobOperations: every ReadDir during pathname expansion (or
@@ -583,7 +628,7 @@ func (b *Bash) execLocked(ctx context.Context, script string, opts ExecOptions) 
 	// so the hook fires once per directory probed. There's no way to
 	// distinguish glob-driven ReadDirs from builtin-driven ones at
 	// this layer; we document the over-count caveat in DECISIONS.md.
-	var globOps atomic.Int64
+	globOps := &scope.globOps
 	readDirHook := func(_ context.Context, _ string) error {
 		n := globOps.Add(1)
 		if n > int64(limits.MaxGlobOperations) {
@@ -596,26 +641,27 @@ func (b *Bash) execLocked(ctx context.Context, script string, opts ExecOptions) 
 	}
 
 	runner, err := bashinterp.BuildRunner(execCtx, bashinterp.Config{
-		Env:          envSlice(env),
-		ShellOptions: b.shellOptions,
-		Cwd:          cwd,
-		Stdin:        stdin,
-		Stdout:       stdoutW,
-		Stderr:       stderrW,
-		FS:           b.fs,
-		CallHandler:  callHandler,
-		ReadDirHook:  readDirHook,
-		Registry:     b.registry,
-		Fetch:        b.fetch,
-		Sleep:        b.sleep,
-		Trace:        b.trace,
-		Limits:       b.limits,
-		ExportedEnv:  env,
-		Aliases:      b.aliases,
-		History:      b.history,
-		Exec:         b.subExec,
-		SourceDepth:  b.execDepth,
-		Shopt:        b.shopt,
+		Env:             envSlice(env),
+		ShellOptions:    b.shellOptions,
+		Cwd:             cwd,
+		Stdin:           stdin,
+		Stdout:          stdoutW,
+		Stderr:          stderrW,
+		FS:              b.fs,
+		CallHandler:     callHandler,
+		OpenHandlerHook: dynamic.open,
+		ReadDirHook:     readDirHook,
+		Registry:        b.registry,
+		Fetch:           b.fetch,
+		Sleep:           b.sleep,
+		Trace:           b.trace,
+		Limits:          b.limits,
+		ExportedEnv:     env,
+		Aliases:         b.aliases,
+		History:         b.history,
+		Exec:            b.subExec,
+		SourceDepth:     b.execDepth,
+		Shopt:           b.shopt,
 	})
 	if err != nil {
 		return result, err
@@ -639,24 +685,14 @@ func (b *Bash) execLocked(ctx context.Context, script string, opts ExecOptions) 
 		result.Metadata = pluginMetadata
 	}
 
-	// Env mutation propagation: copy the runner's exported
-	// vars back into Bash.env so a subsequent Exec call sees them —
-	// UNLESS the caller supplied a per-call Env without ReplaceEnv, in
-	// which case the per-call overrides were ephemeral and post-Exec
-	// state must equal pre-Exec state. ReplaceEnv=true with Env set
-	// reads as "start fresh from this map AND make the script's exports
-	// the new persistent state" (matching the just-bash TS semantics).
-	if opts.Env == nil || opts.ReplaceEnv {
-		for k, v := range result.Env {
-			b.env[k] = v
-		}
-	}
+	// Upstream executes against a cloned environment on every call. Neither
+	// exports nor ReplaceEnv may mutate the constructor's base environment.
 
 	// If a limit was tripped from a non-handler path (today: only
 	// MaxOutputSize, because r.out swallows the LimitedWriter's error),
 	// surface our typed error regardless of whether runErr is nil or
 	// already a context sentinel.
-	if limitErr != nil {
+	if limitErr := scope.err(); limitErr != nil {
 		return result, limitErr
 	}
 
@@ -794,9 +830,7 @@ func wireStdio(opts ExecOptions) (
 
 func cloneEnv(m map[string]string) map[string]string {
 	out := make(map[string]string, len(m))
-	for k, v := range m {
-		out[k] = v
-	}
+	maps.Copy(out, m)
 	return out
 }
 
@@ -808,9 +842,7 @@ func mergeEnv(base, overlay map[string]string, replace bool) map[string]string {
 		return cloneEnv(overlay)
 	}
 	out := cloneEnv(base)
-	for k, v := range overlay {
-		out[k] = v
-	}
+	maps.Copy(out, overlay)
 	return out
 }
 
@@ -851,8 +883,8 @@ func defaultProcessInfo() ProcessInfo {
 // parent Exec call already holds b.mu and runs on the same goroutine.
 //
 // The translation is straightforward: command.SubExecOptions →
-// gobash.ExecOptions. opts.Args is currently dropped on the floor
-// (/ don't pass positional args).
+// gobash.ExecOptions. Args retains the public literal first-dispatch semantics;
+// it is not a shell positional-parameter API.
 func (b *Bash) subExec(ctx context.Context, script string, opts command.SubExecOptions) (command.Result, error) {
 	prevDepth := b.execDepth
 	if opts.SourceDepth > 0 {
@@ -861,6 +893,9 @@ func (b *Bash) subExec(ctx context.Context, script string, opts command.SubExecO
 		b.execDepth = prevDepth + 1
 	}
 	defer func() { b.execDepth = prevDepth }()
+	if scope, ok := executionScopeFromContext(ctx); ok {
+		ctx = context.WithValue(ctx, executionScopeKey{}, scope)
+	}
 	res, err := b.execLocked(ctx, script, ExecOptions{
 		Env:        opts.Env,
 		ReplaceEnv: opts.ReplaceEnv,
@@ -875,4 +910,126 @@ func (b *Bash) subExec(ctx context.Context, script string, opts command.SubExecO
 		Stderr:   res.Stderr,
 		ExitCode: res.ExitCode,
 	}, err
+}
+
+// validateAPILimits validates the effective (post-legacy-override) policy.
+// Zero is a valid budget, consistent with upstream's resolveLimits.
+func validateAPILimits(l ResolvedLimits) error {
+	values := []struct {
+		name  string
+		value int64
+	}{
+		{"MaxCallDepth", int64(l.MaxCallDepth)},
+		{"MaxCommandCount", int64(l.MaxCommandCount)},
+		{"MaxLoopIterations", int64(l.MaxLoopIterations)},
+		{"MaxAwkIterations", int64(l.MaxAwkIterations)},
+		{"MaxSedIterations", int64(l.MaxSedIterations)},
+		{"MaxJqIterations", int64(l.MaxJqIterations)},
+		{"MaxSqliteTimeout", int64(l.MaxSqliteTimeout)},
+		{"MaxPythonTimeout", int64(l.MaxPythonTimeout)},
+		{"MaxJsTimeout", int64(l.MaxJsTimeout)},
+		{"MaxGlobOperations", int64(l.MaxGlobOperations)},
+		{"MaxStringLength", int64(l.MaxStringLength)},
+		{"MaxArrayElements", int64(l.MaxArrayElements)},
+		{"MaxHeredocSize", int64(l.MaxHeredocSize)},
+		{"MaxSubstitutionDepth", int64(l.MaxSubstitutionDepth)},
+		{"MaxBraceExpansionResults", int64(l.MaxBraceExpansionResults)},
+		{"MaxOutputSize", int64(l.MaxOutputSize)},
+		{"MaxFileDescriptors", int64(l.MaxFileDescriptors)},
+		{"MaxSourceDepth", int64(l.MaxSourceDepth)},
+		{"MaxInputSize", int64(l.MaxInputSize)},
+		{"MaxFileSystemBytes", int64(l.MaxFileSystemBytes)},
+	}
+	for _, v := range values {
+		if v.value < 0 {
+			return fmt.Errorf("gobash: %s must be non-negative", v.name)
+		}
+	}
+	return nil
+}
+
+// Upstream normalizeScript deliberately trims each unquoted physical line,
+// rather than removing a common indentation prefix. Its heredoc recognition
+// is a lightweight lexical heuristic, not a second shell parser.
+var apiHeredocPattern = regexp.MustCompile(`<<(-?)\s*(['"]?)([\w-]+)`)
+
+func normalizeAPIScript(script string) string {
+	type delimiter struct {
+		word      string
+		stripTabs bool
+	}
+	lines := strings.Split(script, "\n")
+	var pending []delimiter
+	var quote byte
+	for i, line := range lines {
+		if len(pending) > 0 {
+			d := pending[len(pending)-1]
+			check := line
+			if d.stripTabs {
+				check = strings.TrimLeft(check, "\t")
+			}
+			if check == d.word {
+				lines[i] = strings.TrimLeftFunc(line, apiScriptSpace)
+				pending = pending[:len(pending)-1]
+			}
+			continue
+		}
+		start := quote
+		if start == 0 {
+			lines[i] = strings.TrimLeftFunc(line, apiScriptSpace)
+		}
+		quote = scanAPIQuoteState(line, start)
+		if start != 0 {
+			continue
+		}
+		for _, match := range apiHeredocPattern.FindAllStringSubmatchIndex(lines[i], -1) {
+			// Go regexps lack backreferences: check upstream's closing quote
+			// constraint explicitly for quoted delimiters.
+			q := lines[i][match[4]:match[5]]
+			if q != "" && (match[1] >= len(lines[i]) || lines[i][match[1]:match[1]+1] != q) {
+				continue
+			}
+			pending = append(pending, delimiter{
+				word:      lines[i][match[6]:match[7]],
+				stripTabs: lines[i][match[2]:match[3]] == "-",
+			})
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// ECMAScript trimStart includes BOM, but excludes Unicode NEL.
+func apiScriptSpace(r rune) bool {
+	return r == '\uFEFF' || (r != '\u0085' && unicode.IsSpace(r))
+}
+
+func scanAPIQuoteState(line string, quote byte) byte {
+	for i := 0; i < len(line); i++ {
+		ch := line[i]
+		switch quote {
+		case '\'':
+			if ch == '\'' {
+				quote = 0
+			}
+		case '"':
+			switch ch {
+			case '\\':
+				i++
+			case '"':
+				quote = 0
+			}
+		default:
+			switch ch {
+			case '\'', '"':
+				quote = ch
+			case '\\':
+				i++
+			case '#':
+				if i == 0 || apiScriptSpace(rune(line[i-1])) {
+					return quote
+				}
+			}
+		}
+	}
+	return quote
 }

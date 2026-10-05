@@ -19,6 +19,8 @@ import (
 //
 // All adds are field-only; existing fields keep their names and meaning.
 type BashOptions struct {
+	// Env is copied at construction. Each Exec starts from this base; script
+	// mutations and per-call overrides never persist to later Exec calls.
 	Env             map[string]string
 	Cwd             string
 	ExecutionLimits *ExecutionLimits
@@ -82,7 +84,9 @@ type BashOptions struct {
 	TransformPlugins []transform.Plugin
 
 	// Deprecated convenience knobs — honored to match the just-bash TS
-	// surface. Prefer ExecutionLimits.
+	// surface. Non-zero values override ExecutionLimits; zero means unset.
+	// Use ExecutionLimits pointer fields to request a zero budget.
+	// Negative effective limits are rejected by New. Prefer ExecutionLimits.
 	MaxCallDepth      int
 	MaxCommandCount   int
 	MaxLoopIterations int
@@ -98,16 +102,22 @@ type BashOptions struct {
 // ExecOptions configures a single Exec call. Per-call settings override
 // the per-Bash defaults.
 type ExecOptions struct {
-	Env        map[string]string
+	// Env is merged into a fresh copy of the constructor environment.
+	Env map[string]string
+	// ReplaceEnv starts with only Env instead of the constructor environment.
 	ReplaceEnv bool
 	Cwd        string
-	RawScript  bool
-	Stdin      io.Reader
-	Stdout     io.Writer
-	Stderr     io.Writer
-	// Args is appended to the first command bypassing parsing. Wiring
-	// lands in Phase 5 alongside the interpreter bridge; declared here
-	// to freeze the public surface.
+	// RawScript disables upstream-style leading indentation normalization.
+	// By default heredoc bodies and multiline quoted content are preserved.
+	RawScript bool
+	Stdin     io.Reader
+	Stdout    io.Writer
+	Stderr    io.Writer
+	// Args is appended literally after expansion at the first real command
+	// dispatch (including commands in substitutions/functions). It is consumed
+	// once per Exec, never by loop instrumentation. No quoting, splitting,
+	// globbing, or shell evaluation is applied to these strings. Args does not
+	// initialize shell positional parameters ($1, $@).
 	Args []string
 }
 

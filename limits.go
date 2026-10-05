@@ -28,6 +28,8 @@ type ExecutionLimits struct {
 	MaxOutputSize            *int
 	MaxFileDescriptors       *int
 	MaxSourceDepth           *int
+	MaxInputSize             *int
+	MaxFileSystemBytes       *int
 }
 
 // ResolvedLimits is ExecutionLimits with all defaults applied. The
@@ -63,6 +65,8 @@ func DefaultLimits() ResolvedLimits {
 		MaxOutputSize:            mib10,
 		MaxFileDescriptors:       1024,
 		MaxSourceDepth:           100,
+		MaxInputSize:             1 << 20,
+		MaxFileSystemBytes:       256 * 1024 * 1024,
 	}
 }
 
@@ -126,6 +130,12 @@ func ResolveLimits(in *ExecutionLimits) ResolvedLimits {
 	}
 	if in.MaxSourceDepth != nil {
 		out.MaxSourceDepth = *in.MaxSourceDepth
+	}
+	if in.MaxInputSize != nil {
+		out.MaxInputSize = *in.MaxInputSize
+	}
+	if in.MaxFileSystemBytes != nil {
+		out.MaxFileSystemBytes = *in.MaxFileSystemBytes
 	}
 	return out
 }

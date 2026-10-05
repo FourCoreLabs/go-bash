@@ -1,6 +1,6 @@
 package command
 
-import "sort"
+import "slices"
 
 // Registry maps Name to Command. It is safe to read after
 // construction; concurrent Register/Lookup is NOT supported (the
@@ -64,7 +64,7 @@ func (r *Registry) Names() []Name {
 	for n := range r.cmds {
 		out = append(out, n)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	slices.Sort(out)
 	return out
 }
 

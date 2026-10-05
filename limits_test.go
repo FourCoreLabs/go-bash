@@ -32,6 +32,8 @@ func TestDefaultResolvedLimits(t *testing.T) {
 		MaxOutputSize:            10 * 1024 * 1024,
 		MaxFileDescriptors:       1024,
 		MaxSourceDepth:           100,
+		MaxInputSize:             1 << 20,
+		MaxFileSystemBytes:       256 * 1024 * 1024,
 	}
 	if got != want {
 		t.Errorf("ResolveLimits(nil) mismatch\n got: %+v\nwant: %+v", got, want)
@@ -43,13 +45,18 @@ func TestDefaultResolvedLimits(t *testing.T) {
 func TestResolveLimitsOverrides(t *testing.T) {
 	cmd := 42
 	pyto := 99 * time.Second
+	inputSize := 4096
 	in := &gobash.ExecutionLimits{
 		MaxCommandCount:  &cmd,
 		MaxPythonTimeout: &pyto,
+		MaxInputSize:     &inputSize,
 	}
 	got := gobash.ResolveLimits(in)
 	if got.MaxCommandCount != 42 {
 		t.Errorf("MaxCommandCount = %d; want 42", got.MaxCommandCount)
+	}
+	if got.MaxInputSize != inputSize {
+		t.Errorf("MaxInputSize = %d; want %d", got.MaxInputSize, inputSize)
 	}
 	if got.MaxPythonTimeout != 99*time.Second {
 		t.Errorf("MaxPythonTimeout = %v; want 99s", got.MaxPythonTimeout)

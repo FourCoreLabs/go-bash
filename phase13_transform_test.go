@@ -70,7 +70,7 @@ func TestPhase13PluginsFireInOrder(t *testing.T) {
 	}
 
 	// Exec twice — every plugin must fire once per call.
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		res, err := b.Exec(context.Background(), "true", gobash.ExecOptions{})
 		if err != nil {
 			t.Fatalf("Exec %d: %v", i, err)

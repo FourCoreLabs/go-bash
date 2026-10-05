@@ -25,14 +25,14 @@ import (
 	"github.com/mark3labs/go-bash/internal/builtinutil"
 )
 
-const usage = "sed [-nE] [-e SCRIPT | -f FILE]... [SCRIPT] [FILE...]"
+const usage = "sed [-nE] [-i[SUFFIX]] [-e SCRIPT | -f FILE]... [SCRIPT] [FILE...]"
 const helpText = `Usage: sed [OPTION]... {script-only-if-no-other-script} [input-file]...
 
   -n, --quiet, --silent  suppress automatic printing
   -e SCRIPT              add script to commands (may repeat)
   -f FILE                add file contents to commands (may repeat)
   -E, -r, --regexp-extended  use extended regular expressions
-  -i (in-place)          NOT SUPPORTED in sandbox
+  -i[SUFFIX], --in-place[=SUFFIX]  edit files in place
   --help                 show this help`
 
 // New returns the sed command.
@@ -41,6 +41,7 @@ func New() command.Command { return command.Define("sed", run) }
 func run(_ context.Context, args []string, c *command.Context) command.Result {
 	noAutoPrint := false
 	extended := false
+	inPlace := false
 	var scripts []string
 	scriptSet := false
 	var files []string
@@ -77,8 +78,12 @@ func run(_ context.Context, args []string, c *command.Context) command.Result {
 			}
 			scripts = append(scripts, string(data))
 			scriptSet = true
-		case a == "-i", stdstrings.HasPrefix(a, "-i"):
-			return builtinutil.Errorf(c.Stderr, "sed", 2, "-i not supported in sandbox")
+		case a == "-i", a == "--in-place":
+			inPlace = true
+		case stdstrings.HasPrefix(a, "--in-place="):
+			inPlace = true
+		case stdstrings.HasPrefix(a, "-i"):
+			inPlace = true
 		case a == "--":
 			i++
 			if !scriptSet && i < len(args) {
@@ -91,12 +96,16 @@ func run(_ context.Context, args []string, c *command.Context) command.Result {
 		case stdstrings.HasPrefix(a, "-") && len(a) > 1 && a != "-":
 			// Bundled short flags.
 			ok := true
-			for _, ch := range a[1:] {
+			for j := 1; j < len(a); j++ {
+				ch := a[j]
 				switch ch {
 				case 'n':
 					noAutoPrint = true
 				case 'E', 'r':
 					extended = true
+				case 'i':
+					inPlace = true
+					j = len(a)
 				default:
 					ok = false
 				}
@@ -121,6 +130,40 @@ run:
 	prog, err := compile(stdstrings.Join(scripts, "\n"), extended)
 	if err != nil {
 		return builtinutil.Errorf(c.Stderr, "sed", 2, "%v", err)
+	}
+
+	if inPlace {
+		if len(files) == 0 {
+			return builtinutil.Errorf(c.Stderr, "sed", 1, "-i requires at least one file argument")
+		}
+		for _, f := range files {
+			// Upstream ignores stdin markers in in-place mode.
+			if f == "-" {
+				continue
+			}
+			p := builtinutil.ResolvePath(c.Cwd, f)
+			data, err := c.FS.ReadFile(p)
+			if err != nil {
+				return builtinutil.Errorf(c.Stderr, "sed", 1, "%s: No such file or directory", f)
+			}
+			var out bytes.Buffer
+			st := &state{prog: prog, lines: splitLines(data), out: &out,
+				noAutoPrint: noAutoPrint, maxIter: c.Limits.MaxSedIterations}
+			if err := st.run(); err != nil {
+				return builtinutil.Errorf(c.Stderr, "sed", 2, "%v", err)
+			}
+			if err := st.flushAppend(); err != nil {
+				return builtinutil.Errorf(c.Stderr, "sed", 2, "%v", err)
+			}
+			info, err := c.FS.Stat(p)
+			if err != nil {
+				return builtinutil.Errorf(c.Stderr, "sed", 1, "%s: %v", f, err)
+			}
+			if err := c.FS.WriteFile(p, out.Bytes(), info.Mode().Perm()); err != nil {
+				return builtinutil.Errorf(c.Stderr, "sed", 1, "%s: %v", f, err)
+			}
+		}
+		return command.Result{}
 	}
 
 	// Read all input (sed needs '$' last-line address).
@@ -208,8 +251,8 @@ type cmd struct {
 	kind cmdKind
 	addr addrSpec
 	// substitute
-	subRe   *regexp.Regexp
-	subRepl string
+	subRe    *regexp.Regexp
+	subRepl  string
 	subFlagG bool
 	subFlagP bool
 	subFlagI bool
@@ -638,9 +681,10 @@ func (c *compiler) parseYank() (*cmd, error) {
 }
 
 // parseATText reads text after a, i, c. Forms:
-//   a\<newline>TEXT (terminated by newline-not-preceded-by-backslash)
-//   a TEXT (rest of line)
-//   a\TEXT (rest of line)
+//
+//	a\<newline>TEXT (terminated by newline-not-preceded-by-backslash)
+//	a TEXT (rest of line)
+//	a\TEXT (rest of line)
 func (c *compiler) parseATText() (string, error) {
 	if c.pos < len(c.src) && c.src[c.pos] == '\\' {
 		c.pos++

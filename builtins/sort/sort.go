@@ -7,16 +7,18 @@
 package sort
 
 import (
+	"bytes"
 	"context"
 	stdsort "sort"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/mark3labs/go-bash/command"
 	"github.com/mark3labs/go-bash/internal/builtinutil"
 )
 
-const usage = "sort [-nrufVhscmz] [-k FIELD] [-t SEP] [FILE...]"
+const usage = "sort [-nrufVhscmzdM] [-k FIELD] [-t SEP] [-o FILE] [FILE...]"
 const helpText = `Usage: sort [OPTION]... [FILE]...
 Write sorted concatenation of all FILE(s) to standard output.
 
@@ -25,6 +27,9 @@ Write sorted concatenation of all FILE(s) to standard output.
   -u, --unique             output only unique lines
   -k, --key=KEYDEF         sort via a key
   -t, --field-separator=SEP   use SEP instead of non-blank to blank transition
+  -d, --dictionary-order  consider only blanks and ASCII alphanumeric characters
+  -M, --month-sort        compare (unknown) < JAN < ... < DEC
+  -o, --output=FILE       write result to FILE instead of stdout
   -f, --ignore-case
   -V, --version-sort
   -h, --human-numeric-sort
@@ -35,9 +40,11 @@ Write sorted concatenation of all FILE(s) to standard output.
 
 type opts struct {
 	numeric, reverse, unique, foldCase, versionSort, humanSort, stable, check, zero bool
-	keyField                                                                       int
-	keyEnd                                                                         int
-	sep                                                                            string
+	dictionary, month                                                               bool
+	output                                                                          string
+	keyField                                                                        int
+	keyEnd                                                                          int
+	sep                                                                             string
 }
 
 // New returns the sort command.
@@ -53,6 +60,20 @@ func run(_ context.Context, args []string, c *command.Context) command.Result {
 		case a == "--help":
 			builtinutil.PrintHelp(c.Stdout, helpText)
 			return command.Result{ExitCode: 0}
+		case a == "-d", a == "--dictionary-order":
+			o.dictionary = true
+		case a == "-M", a == "--month-sort":
+			o.month = true
+		case a == "-o", a == "--output":
+			if i+1 >= len(args) {
+				return builtinutil.UsageError(c.Stderr, usage)
+			}
+			i++
+			o.output = args[i]
+		case strings.HasPrefix(a, "--output="):
+			o.output = strings.TrimPrefix(a, "--output=")
+		case strings.HasPrefix(a, "-o") && len(a) > 2:
+			o.output = a[2:]
 		case a == "-n", a == "--numeric-sort":
 			o.numeric = true
 		case a == "-r", a == "--reverse":
@@ -133,9 +154,17 @@ run:
 	if o.unique {
 		lines = uniq(lines, &o)
 	}
+	var out bytes.Buffer
 	for _, line := range lines {
-		_, _ = c.Stdout.Write([]byte(line))
-		_, _ = c.Stdout.Write([]byte{delim})
+		_, _ = out.WriteString(line)
+		_ = out.WriteByte(delim)
+	}
+	if o.output != "" {
+		if err := c.FS.WriteFile(builtinutil.ResolvePath(c.Cwd, o.output), out.Bytes(), 0o644); err != nil {
+			return builtinutil.Errorf(c.Stderr, "sort", 2, "%s: %v", o.output, err)
+		}
+	} else {
+		_, _ = c.Stdout.Write(out.Bytes())
 	}
 	return command.Result{}
 }
@@ -156,6 +185,10 @@ func parseKey(s string, o *opts) {
 func bundle(a string, o *opts) bool {
 	for _, ch := range a[1:] {
 		switch ch {
+		case 'd':
+			o.dictionary = true
+		case 'M':
+			o.month = true
 		case 'n':
 			o.numeric = true
 		case 'r':
@@ -203,6 +236,11 @@ func splitDelim(s string, delim byte) []string {
 func less(a, b string, o *opts) bool {
 	ka, kb := key(a, o), key(b, o)
 	cmp := compare(ka, kb, o)
+	// These modes compare transformed keys; upstream falls back to original
+	// lines for ties unless stable sorting was requested.
+	if cmp == 0 && (o.dictionary || o.month) && !o.stable {
+		cmp = strings.Compare(a, b)
+	}
 	if o.reverse {
 		cmp = -cmp
 	}
@@ -236,6 +274,12 @@ func key(s string, o *opts) string {
 }
 
 func compare(a, b string, o *opts) int {
+	if o.dictionary {
+		a, b = dictionaryOrder(a), dictionaryOrder(b)
+	}
+	if o.month {
+		return monthNumber(a) - monthNumber(b)
+	}
 	if o.foldCase {
 		a, b = strings.ToLower(a), strings.ToLower(b)
 	}
@@ -265,6 +309,29 @@ func compare(a, b string, o *opts) int {
 		return versionCompare(a, b)
 	}
 	return strings.Compare(a, b)
+}
+
+// Match upstream's [^a-zA-Z0-9\s] filter, not Unicode letters/digits.
+func dictionaryOrder(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || unicode.IsSpace(r) || r == '\uFEFF' {
+			return r
+		}
+		return -1
+	}, s)
+}
+
+func monthNumber(s string) int {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if len(s) < 3 {
+		return 0
+	}
+	for i, month := range []string{"jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"} {
+		if s[:3] == month {
+			return i + 1
+		}
+	}
+	return 0
 }
 
 func humanParse(s string) float64 {
@@ -385,7 +452,15 @@ func uniq(lines []string, o *opts) []string {
 	}
 	out := lines[:1]
 	for i := 1; i < len(lines); i++ {
-		if compare(key(lines[i], o), key(out[len(out)-1], o), o) != 0 {
+		different := compare(key(lines[i], o), key(out[len(out)-1], o), o) != 0
+		if o.dictionary || o.month {
+			a, b := key(lines[i], o), key(out[len(out)-1], o)
+			if o.foldCase {
+				a, b = strings.ToLower(a), strings.ToLower(b)
+			}
+			different = a != b
+		}
+		if different {
 			out = append(out, lines[i])
 		}
 	}

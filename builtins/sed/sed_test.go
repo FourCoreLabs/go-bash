@@ -223,9 +223,9 @@ func TestUnknown(t *testing.T) {
 	}
 }
 
-func TestInPlaceRejected(t *testing.T) {
+func TestInPlaceRequiresFiles(t *testing.T) {
 	_, e, code := run(t, "", "-i", "s/a/b/")
-	if code == 0 || !strings.Contains(e, "not supported") {
-		t.Errorf("expected -i to be rejected, got code=%d e=%q", code, e)
+	if code != 1 || !strings.Contains(e, "requires at least one file") {
+		t.Errorf("expected missing-file error, got code=%d e=%q", code, e)
 	}
 }

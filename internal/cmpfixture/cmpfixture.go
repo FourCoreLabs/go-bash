@@ -4,8 +4,10 @@
 // stderr / exit code. Run loads one fixture and asserts a *Bash
 // instance produces the expected output byte-for-byte.
 //
-// The fixture format is a near-direct port of just-bash's
-// src/comparison-tests/ shape. Future enhancements
+// This is a Go-specific regression fixture format, not upstream's
+// ID-keyed comparison fixture format. Upstream fixtures require conversion
+// and recorded expectations need provenance before they establish parity.
+// Future enhancements
 // (Phase 19) will add the RECORD_FIXTURES re-recording path and the
 // locked-fixture skip logic; for Phase 10 we only need the read-side
 // loader so Wave A built-ins can ship with at least one fixture each.
@@ -14,8 +16,11 @@
 package cmpfixture
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -26,10 +31,8 @@ import (
 	"github.com/mark3labs/go-bash/fs"
 )
 
-// Fixture is the on-disk shape of a comparison-test JSON file. Field
-// names match the just-bash format (`script`, `files`, `env`, `cwd`,
-// `locked`, `expected`) so a future bulk-import script
-// can copy files in without rewriting keys.
+// Fixture is the Go-specific on-disk shape of a regression fixture.
+// It is not directly compatible with just-bash's comparison fixtures.
 type Fixture struct {
 	// Script is the bash source the fixture exercises. Required.
 	Script string `json:"script"`
@@ -77,8 +80,25 @@ func Load(path string) (*Fixture, error) {
 		return nil, err
 	}
 	var f Fixture
-	if err := json.Unmarshal(data, &f); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&f); err != nil {
 		return nil, err
+	}
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		return nil, fmt.Errorf("cmpfixture: expected one JSON object")
+	}
+	// Require explicit fields, but allow an explicitly empty script and
+	// omitted zero-valued fields inside expected (existing fixture convention).
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return nil, err
+	}
+	for _, key := range []string{"script", "expected"} {
+		value, ok := fields[key]
+		if !ok || bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+			return nil, fmt.Errorf("cmpfixture: required field %q missing or null", key)
+		}
 	}
 	return &f, nil
 }
@@ -130,8 +150,8 @@ func RunFixture(t *testing.T, fx *Fixture) {
 
 // RunDir runs every *.json fixture in dir as a subtest. Files are
 // sorted by name for deterministic test ordering; non-JSON entries
-// and subdirectories are skipped. Empty dir is not an error — the
-// caller should pass t.Skip for "no fixtures yet" cases.
+// and subdirectories are skipped. An empty fixture directory fails rather
+// than silently reporting successful comparison coverage.
 func RunDir(t *testing.T, dir string) {
 	t.Helper()
 	entries, err := os.ReadDir(dir)
@@ -147,6 +167,9 @@ func RunDir(t *testing.T, dir string) {
 			continue
 		}
 		names = append(names, e.Name())
+	}
+	if len(names) == 0 {
+		t.Fatalf("cmpfixture: no JSON fixtures in %s", dir)
 	}
 	sort.Strings(names)
 	for _, name := range names {

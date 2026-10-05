@@ -115,8 +115,8 @@ func (a allowEntry) matches(candidate *url.URL) bool {
 }
 
 // findMatch returns the first allowEntry that matches candidate, or
-// (allowEntry{}, false) if none do. First-match wins so the caller
-// can order entries by specificity.
+// (allowEntry{}, false) if none do. This is only an authorization check;
+// header transforms must visit all matching entries in configuration order.
 func findMatch(entries []allowEntry, candidate *url.URL) (allowEntry, bool) {
 	for _, e := range entries {
 		if e.matches(candidate) {

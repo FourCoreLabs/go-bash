@@ -179,11 +179,11 @@ func TestMaxParserDepthEnforced(t *testing.T) {
 	// Deeply nested subshells: ((((( ... ))))).
 	depth := parser.MaxParserDepth + 50
 	var b strings.Builder
-	for i := 0; i < depth; i++ {
+	for range depth {
 		b.WriteString("( ")
 	}
 	b.WriteString("a")
-	for i := 0; i < depth; i++ {
+	for range depth {
 		b.WriteString(" )")
 	}
 	_, err := parser.Parse(b.String())
@@ -196,6 +196,27 @@ func TestMaxParserDepthEnforced(t *testing.T) {
 	}
 	if !strings.Contains(pe.Msg, "depth") {
 		t.Fatalf("expected depth-exceeded message, got %q", pe.Msg)
+	}
+}
+
+func TestParseWithLimitsInputAndHeredocBudgets(t *testing.T) {
+	if _, err := parser.ParseWithLimits("echo hi", parser.Limits{MaxInputSize: 7, MaxHeredocSize: 20}); err != nil {
+		t.Fatalf("exact input limit should pass: %v", err)
+	}
+	if _, err := parser.ParseWithLimits("echo hi", parser.Limits{MaxInputSize: 6, MaxHeredocSize: 20}); err == nil || !strings.Contains(err.Error(), "input too large") {
+		t.Fatalf("expected input limit error, got %v", err)
+	}
+	if _, err := parser.ParseWithLimits("", parser.Limits{}); err != nil {
+		t.Fatalf("empty input should pass zero input budget: %v", err)
+	}
+	if _, err := parser.ParseWithLimits("echo", parser.Limits{}); err == nil {
+		t.Fatal("expected zero input budget to reject non-empty input")
+	}
+	if _, err := parser.ParseWithLimits("cat <<EOF\nx\nEOF\n", parser.Limits{MaxInputSize: 100, MaxHeredocSize: 0}); err == nil || !strings.Contains(err.Error(), "heredoc") {
+		t.Fatalf("expected zero heredoc budget error, got %v", err)
+	}
+	if _, err := parser.Parse("echo hi"); err != nil {
+		t.Fatalf("Parse defaults should remain compatible: %v", err)
 	}
 }
 
