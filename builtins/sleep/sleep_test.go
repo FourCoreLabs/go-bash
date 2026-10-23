@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mark3labs/go-bash/builtins/sleep"
-	"github.com/mark3labs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/builtins/sleep"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 func run(t *testing.T, ctx *command.Context, args ...string) (string, string, int) {

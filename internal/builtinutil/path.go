@@ -3,7 +3,7 @@ package builtinutil
 import (
 	"strings"
 
-	gbfs "github.com/mark3labs/go-bash/fs"
+	gbfs "github.com/FourCoreLabs/go-bash/fs"
 )
 
 // ResolvePath joins a possibly-relative path against the dispatch

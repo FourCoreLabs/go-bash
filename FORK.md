@@ -1,7 +1,18 @@
 # FourCoreLabs fork of go-bash
 
 Tracks `github.com/mark3labs/go-bash` (merged through upstream `a055aa7`, v0.1.0)
-with the fixes this product needs:
+with the fixes this product needs.
+
+## Module path
+
+This fork declares `module github.com/FourCoreLabs/go-bash`, so consumers
+require it by that path with no `replace` for go-bash. Merging from upstream
+brings back `mark3labs` import paths in new files; rewrite them before
+committing the merge:
+
+    git grep -l 'github.com/mark3labs/go-bash' -- '*.go' | xargs sed -i 's#github.com/mark3labs/go-bash#github.com/FourCoreLabs/go-bash#g'
+
+The fixes:
 
 * `fix/cd-ls-rg` — `cd`, `ls` and `rg` resolve virtual paths, and the active
   runner is reachable so `cd` can move it (merged).

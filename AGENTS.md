@@ -20,7 +20,7 @@ and (by default) never reaches the host filesystem. You get back
 stdout, stderr, and an exit code as strings.
 
 ```go
-import gobash "github.com/mark3labs/go-bash"
+import gobash "github.com/FourCoreLabs/go-bash"
 
 b, _ := gobash.New(gobash.BashOptions{})
 res, _ := b.Exec(ctx, "echo hello", gobash.ExecOptions{})
@@ -53,8 +53,8 @@ A typical AI-agent integration looks like this:
 ```go
 import (
     "context"
-    gobash "github.com/mark3labs/go-bash"
-    "github.com/mark3labs/go-bash/network"
+    gobash "github.com/FourCoreLabs/go-bash"
+    "github.com/FourCoreLabs/go-bash/network"
 )
 
 func newAgentBash() (*gobash.Bash, error) {
@@ -157,7 +157,7 @@ containing your agent binary.
 Network is **off by default**. Enable per-host:
 
 ```go
-import "github.com/mark3labs/go-bash/network"
+import "github.com/FourCoreLabs/go-bash/network"
 
 b, _ := gobash.New(gobash.BashOptions{
     Network: &network.Config{
@@ -229,14 +229,14 @@ can retry with a smaller script.
 
 | Capability | Package | Built into default binary? |
 |---|---|---|
-| `sqlite3` (pure-Go modernc.org/sqlite) | `github.com/mark3labs/go-bash/sqlite` | Yes (Wave H stub); call `sqlite.Register` for the real runtime |
+| `sqlite3` (pure-Go modernc.org/sqlite) | `github.com/FourCoreLabs/go-bash/sqlite` | Yes (Wave H stub); call `sqlite.Register` for the real runtime |
 | JavaScript (`js-exec` via goja) | NOT YET BUILT | No — Phase 15 deferred |
 | Python (`python3` via host hook) | NOT YET BUILT | No — Phase 16 deferred |
 
 To enable the SQLite real runtime:
 
 ```go
-import gbsqlite "github.com/mark3labs/go-bash/sqlite"
+import gbsqlite "github.com/FourCoreLabs/go-bash/sqlite"
 
 b, _ := gobash.New(gobash.BashOptions{})
 _ = gbsqlite.Register(b, gbsqlite.Options{Timeout: 5 * time.Second})
@@ -284,7 +284,7 @@ limits cover that case.
 Register Go commands the script can call by name:
 
 ```go
-import "github.com/mark3labs/go-bash/command"
+import "github.com/FourCoreLabs/go-bash/command"
 
 hello := command.Define("hello", func(ctx context.Context, args []string, c *command.Context) command.Result {
     name := "world"
@@ -317,7 +317,7 @@ If your existing code targets [`@vercel/sandbox`](https://vercel.com/docs/vercel
 the `sandbox` subpackage wraps `*Bash` in the same surface:
 
 ```go
-import "github.com/mark3labs/go-bash/sandbox"
+import "github.com/FourCoreLabs/go-bash/sandbox"
 
 sb, _ := sandbox.Create(ctx, sandbox.Options{
     OverlayRoot: "/path/to/project",
@@ -340,7 +340,7 @@ The `gobash` binary is a thin shell around the library. Useful for
 shell scripts and as an executable tool you can hand to other agents:
 
 ```bash
-go install github.com/mark3labs/go-bash/cmd/gobash@latest
+go install github.com/FourCoreLabs/go-bash/cmd/gobash@latest
 
 gobash -c 'echo hello'
 gobash --root /path/to/project -c 'ls -la'

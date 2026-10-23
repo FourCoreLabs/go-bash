@@ -27,8 +27,8 @@ import (
 	"strings"
 	"testing"
 
-	gobash "github.com/mark3labs/go-bash"
-	"github.com/mark3labs/go-bash/fs"
+	gobash "github.com/FourCoreLabs/go-bash"
+	"github.com/FourCoreLabs/go-bash/fs"
 )
 
 // Fixture is the Go-specific on-disk shape of a regression fixture.

@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	gobash "github.com/mark3labs/go-bash"
-	"github.com/mark3labs/go-bash/ast"
-	"github.com/mark3labs/go-bash/parser"
+	gobash "github.com/FourCoreLabs/go-bash"
+	"github.com/FourCoreLabs/go-bash/ast"
+	"github.com/FourCoreLabs/go-bash/parser"
 )
 
 // TestParseAcceptanceShape covers the spec: Parse("echo $((1+2)) | grep o")

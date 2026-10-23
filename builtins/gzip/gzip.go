@@ -27,8 +27,8 @@ import (
 	"sort"
 	stdstrings "strings"
 
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/internal/builtinutil"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/internal/builtinutil"
 )
 
 // Mode selects the default behavior for a gzip-family invocation.

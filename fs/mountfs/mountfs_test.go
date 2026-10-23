@@ -3,10 +3,10 @@ package mountfs_test
 import (
 	"testing"
 
-	gobashfs "github.com/mark3labs/go-bash/fs"
-	"github.com/mark3labs/go-bash/fs/fstest"
-	"github.com/mark3labs/go-bash/fs/memfs"
-	"github.com/mark3labs/go-bash/fs/mountfs"
+	gobashfs "github.com/FourCoreLabs/go-bash/fs"
+	"github.com/FourCoreLabs/go-bash/fs/fstest"
+	"github.com/FourCoreLabs/go-bash/fs/memfs"
+	"github.com/FourCoreLabs/go-bash/fs/mountfs"
 )
 
 // TestContract runs the shared FileSystem contract suite against a

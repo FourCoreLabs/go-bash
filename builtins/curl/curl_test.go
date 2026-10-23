@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mark3labs/go-bash/builtins/curl"
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/fs/memfs"
-	"github.com/mark3labs/go-bash/network"
+	"github.com/FourCoreLabs/go-bash/builtins/curl"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/fs/memfs"
+	"github.com/FourCoreLabs/go-bash/network"
 )
 
 // stubDoer records the last request and returns a canned response.

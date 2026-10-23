@@ -3,8 +3,8 @@ package export_test
 import (
 	"testing"
 
-	_ "github.com/mark3labs/go-bash/builtins/export"
-	"github.com/mark3labs/go-bash/internal/cmpfixture"
+	_ "github.com/FourCoreLabs/go-bash/builtins/export"
+	"github.com/FourCoreLabs/go-bash/internal/cmpfixture"
 )
 
 func TestComparisonFixtures(t *testing.T) {

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	_ "github.com/mark3labs/go-bash/builtins/echo"
-	"github.com/mark3labs/go-bash/builtins/xargs"
-	"github.com/mark3labs/go-bash/command"
+	_ "github.com/FourCoreLabs/go-bash/builtins/echo"
+	"github.com/FourCoreLabs/go-bash/builtins/xargs"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 func newReg(t *testing.T) *command.Registry {

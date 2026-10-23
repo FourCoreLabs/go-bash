@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mark3labs/go-bash/builtins/truecmd"
-	"github.com/mark3labs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/builtins/truecmd"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 func TestTrueExitsZero(t *testing.T) {

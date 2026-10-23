@@ -27,8 +27,8 @@ import (
 	"context"
 	"io"
 
-	gbfs "github.com/mark3labs/go-bash/fs"
-	"github.com/mark3labs/go-bash/network"
+	gbfs "github.com/FourCoreLabs/go-bash/fs"
+	"github.com/FourCoreLabs/go-bash/network"
 )
 
 // SubExecFunc is the signature of the sub-shell invocation hook

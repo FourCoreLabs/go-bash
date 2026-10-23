@@ -22,9 +22,9 @@ import (
 	"strings"
 	"time"
 
-	gobash "github.com/mark3labs/go-bash"
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/internal/builtinutil"
+	gobash "github.com/FourCoreLabs/go-bash"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/internal/builtinutil"
 
 	// modernc.org/sqlite registers the `sqlite` driver in its init().
 	_ "modernc.org/sqlite"

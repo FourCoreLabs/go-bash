@@ -6,9 +6,9 @@ import (
 
 	"bytes"
 	"context"
-	"github.com/mark3labs/go-bash/builtins/rg"
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/fs/memfs"
+	"github.com/FourCoreLabs/go-bash/builtins/rg"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/fs/memfs"
 )
 
 func executeRG(t *testing.T, files map[string]string, links map[string]string, args ...string) (string, string, int) {

@@ -27,11 +27,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	gobash "github.com/mark3labs/go-bash"
-	gbfs "github.com/mark3labs/go-bash/fs"
-	"github.com/mark3labs/go-bash/fs/mountfs"
-	"github.com/mark3labs/go-bash/fs/overlayfs"
-	"github.com/mark3labs/go-bash/network"
+	gobash "github.com/FourCoreLabs/go-bash"
+	gbfs "github.com/FourCoreLabs/go-bash/fs"
+	"github.com/FourCoreLabs/go-bash/fs/mountfs"
+	"github.com/FourCoreLabs/go-bash/fs/overlayfs"
+	"github.com/FourCoreLabs/go-bash/network"
 )
 
 // version is the build version reported by --version. It defaults to

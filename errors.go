@@ -3,7 +3,7 @@ package gobash
 import (
 	"fmt"
 
-	"github.com/mark3labs/go-bash/parser"
+	"github.com/FourCoreLabs/go-bash/parser"
 )
 
 // ExecutionLimitError is returned by Exec when a script trips an execution

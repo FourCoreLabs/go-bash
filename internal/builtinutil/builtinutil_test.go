@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/mark3labs/go-bash/internal/builtinutil"
+	"github.com/FourCoreLabs/go-bash/internal/builtinutil"
 )
 
 func TestPrintHelpAddsNewline(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/mark3labs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 // OpenInput returns an io.Reader for the given operand. The literal

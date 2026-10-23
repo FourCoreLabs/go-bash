@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mark3labs/go-bash/builtins/timeout"
-	"github.com/mark3labs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/builtins/timeout"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 // stubExec runs each "script" by interpreting it as a single token

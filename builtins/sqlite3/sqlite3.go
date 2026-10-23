@@ -1,5 +1,5 @@
 // Package sqlite3 registers a stub `sqlite3` built-in (// §14). The real driver lands in Phase 14 as a separate opt-in subpackage
-// (github.com/mark3labs/go-bash/sqlite). Until then any invocation of
+// (github.com/FourCoreLabs/go-bash/sqlite). Until then any invocation of
 // `sqlite3` exits non-zero with a "not enabled" diagnostic so scripts
 // that probe for it get a clear failure rather than "command not found".
 //
@@ -12,15 +12,15 @@ package sqlite3
 import (
 	"context"
 
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/internal/builtinutil"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/internal/builtinutil"
 )
 
 const helpText = `Usage: sqlite3 [OPTIONS] [DATABASE] [SQL]
 Run SQL against a SQLite database.
 
 This stub is registered when the SQLite optional runtime has not been
-enabled. Import "github.com/mark3labs/go-bash/sqlite" (Phase 14) to
+enabled. Import "github.com/FourCoreLabs/go-bash/sqlite" (Phase 14) to
 replace the stub with the real driver.
 
   --help    show this help`
@@ -36,7 +36,7 @@ func run(_ context.Context, args []string, c *command.Context) command.Result {
 		}
 	}
 	return builtinutil.Errorf(c.Stderr, "sqlite3", 1,
-		"sqlite3 not enabled (import github.com/mark3labs/go-bash/sqlite to enable)")
+		"sqlite3 not enabled (import github.com/FourCoreLabs/go-bash/sqlite to enable)")
 }
 
 func init() { command.RegisterBuiltin(New()) }

@@ -3,8 +3,8 @@ package printf_test
 import (
 	"testing"
 
-	_ "github.com/mark3labs/go-bash/builtins/printf"
-	"github.com/mark3labs/go-bash/internal/cmpfixture"
+	_ "github.com/FourCoreLabs/go-bash/builtins/printf"
+	"github.com/FourCoreLabs/go-bash/internal/cmpfixture"
 )
 
 func TestComparisonFixtures(t *testing.T) {

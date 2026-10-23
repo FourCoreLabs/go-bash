@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/mark3labs/go-bash/internal/ringbuf"
+	"github.com/FourCoreLabs/go-bash/internal/ringbuf"
 )
 
 func TestLimitedWriterUnderLimit(t *testing.T) {

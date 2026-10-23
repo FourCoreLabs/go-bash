@@ -3,9 +3,9 @@ package xargs_test
 import (
 	"testing"
 
-	_ "github.com/mark3labs/go-bash/builtins/echo"
-	_ "github.com/mark3labs/go-bash/builtins/xargs"
-	"github.com/mark3labs/go-bash/internal/cmpfixture"
+	_ "github.com/FourCoreLabs/go-bash/builtins/echo"
+	_ "github.com/FourCoreLabs/go-bash/builtins/xargs"
+	"github.com/FourCoreLabs/go-bash/internal/cmpfixture"
 )
 
 func TestComparisonFixtures(t *testing.T) {

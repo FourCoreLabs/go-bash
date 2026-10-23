@@ -7,10 +7,10 @@ import (
 	"context"
 	"strings"
 
-	gbfs "github.com/mark3labs/go-bash/fs"
+	gbfs "github.com/FourCoreLabs/go-bash/fs"
 
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/internal/builtinutil"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/internal/builtinutil"
 )
 
 const usage = "rmdir [-p] DIRECTORY..."

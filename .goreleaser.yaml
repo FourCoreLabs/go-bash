@@ -35,7 +35,7 @@ release:
 
     ```bash
     # Go install (requires Go 1.25+)
-    go install github.com/mark3labs/go-bash/cmd/gobash@latest
+    go install github.com/FourCoreLabs/go-bash/cmd/gobash@latest
 
     # Or download a prebuilt binary from the assets below
     ```

@@ -3,9 +3,9 @@ package collector_test
 import (
 	"testing"
 
-	"github.com/mark3labs/go-bash/parser"
-	"github.com/mark3labs/go-bash/transform"
-	"github.com/mark3labs/go-bash/transform/plugins/collector"
+	"github.com/FourCoreLabs/go-bash/parser"
+	"github.com/FourCoreLabs/go-bash/transform"
+	"github.com/FourCoreLabs/go-bash/transform/plugins/collector"
 )
 
 func TestCollectorBasic(t *testing.T) {

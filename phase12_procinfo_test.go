@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	gobash "github.com/mark3labs/go-bash"
-	_ "github.com/mark3labs/go-bash/builtins"
-	"github.com/mark3labs/go-bash/fs"
+	gobash "github.com/FourCoreLabs/go-bash"
+	_ "github.com/FourCoreLabs/go-bash/builtins"
+	"github.com/FourCoreLabs/go-bash/fs"
 )
 
 // The spec — Process Info & Defaults acceptance tests.

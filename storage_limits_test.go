@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	gobash "github.com/mark3labs/go-bash"
-	"github.com/mark3labs/go-bash/fs"
-	"github.com/mark3labs/go-bash/fs/memfs"
+	gobash "github.com/FourCoreLabs/go-bash"
+	"github.com/FourCoreLabs/go-bash/fs"
+	"github.com/FourCoreLabs/go-bash/fs/memfs"
 )
 
 func TestMemFSByteBudget(t *testing.T) {

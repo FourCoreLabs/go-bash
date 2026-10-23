@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mark3labs/go-bash/command"
-	gbfs "github.com/mark3labs/go-bash/fs"
+	"github.com/FourCoreLabs/go-bash/command"
+	gbfs "github.com/FourCoreLabs/go-bash/fs"
 )
 
 // The spec — Filesystem Init & Default Layout.
