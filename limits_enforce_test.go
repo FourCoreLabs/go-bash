@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	gobash "github.com/mark3labs/go-bash"
+	gobash "github.com/FourCoreLabs/go-bash"
 )
 
 func intPtr(v int) *int { return &v }

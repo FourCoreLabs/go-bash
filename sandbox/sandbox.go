@@ -23,10 +23,10 @@ import (
 
 	"mvdan.cc/sh/v3/syntax"
 
-	gobash "github.com/mark3labs/go-bash"
-	gbfs "github.com/mark3labs/go-bash/fs"
-	"github.com/mark3labs/go-bash/fs/overlayfs"
-	"github.com/mark3labs/go-bash/network"
+	gobash "github.com/FourCoreLabs/go-bash"
+	gbfs "github.com/FourCoreLabs/go-bash/fs"
+	"github.com/FourCoreLabs/go-bash/fs/overlayfs"
+	"github.com/FourCoreLabs/go-bash/network"
 )
 
 // Options configures a Sandbox at construction time. FS and OverlayRoot

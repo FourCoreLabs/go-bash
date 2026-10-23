@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	gobash "github.com/mark3labs/go-bash"
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/network"
+	gobash "github.com/FourCoreLabs/go-bash"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/network"
 )
 
 // fetchProbeCommand is a sample command that records the Fetch field

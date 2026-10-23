@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mark3labs/go-bash/builtins/sqlite3"
-	"github.com/mark3labs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/builtins/sqlite3"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 func run(t *testing.T, args ...string) (string, string, int) {

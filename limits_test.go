@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	gobash "github.com/mark3labs/go-bash"
+	gobash "github.com/FourCoreLabs/go-bash"
 )
 
 // TestDefaultResolvedLimits asserts that the default values produced by

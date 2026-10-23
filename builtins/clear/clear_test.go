@@ -5,8 +5,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/mark3labs/go-bash/builtins/clear"
-	"github.com/mark3labs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/builtins/clear"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 func TestClearWritesAnsi(t *testing.T) {

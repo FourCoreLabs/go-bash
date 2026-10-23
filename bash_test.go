@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	gobash "github.com/mark3labs/go-bash"
+	gobash "github.com/FourCoreLabs/go-bash"
 )
 
 // TestNewZeroOptions covers the Phase 1 acceptance criterion that

@@ -18,8 +18,8 @@ import (
 
 	"github.com/itchyny/gojq"
 
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/internal/builtinutil"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/internal/builtinutil"
 )
 
 const usage = "jq [OPTIONS] FILTER [FILE...]"

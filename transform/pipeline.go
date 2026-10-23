@@ -16,8 +16,8 @@ package transform
 import (
 	"fmt"
 
-	"github.com/mark3labs/go-bash/ast"
-	"github.com/mark3labs/go-bash/parser"
+	"github.com/FourCoreLabs/go-bash/ast"
+	"github.com/FourCoreLabs/go-bash/parser"
 )
 
 // Pipeline is the ordered plugin orchestrator.

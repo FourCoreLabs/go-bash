@@ -3,8 +3,8 @@ package mapfile_test
 import (
 	"testing"
 
-	_ "github.com/mark3labs/go-bash/builtins/mapfile"
-	"github.com/mark3labs/go-bash/internal/cmpfixture"
+	_ "github.com/FourCoreLabs/go-bash/builtins/mapfile"
+	"github.com/FourCoreLabs/go-bash/internal/cmpfixture"
 )
 
 func TestComparisonFixtures(t *testing.T) {

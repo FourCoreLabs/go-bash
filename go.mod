@@ -1,4 +1,4 @@
-module github.com/mark3labs/go-bash
+module github.com/FourCoreLabs/go-bash
 
 go 1.25.0
 

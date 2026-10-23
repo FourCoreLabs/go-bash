@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	gobashfs "github.com/mark3labs/go-bash/fs"
+	gobashfs "github.com/FourCoreLabs/go-bash/fs"
 )
 
 // fileContent is the byte slice + metadata shared by all hard links to

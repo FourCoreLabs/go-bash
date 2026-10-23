@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	gobash "github.com/mark3labs/go-bash"
-	"github.com/mark3labs/go-bash/command"
+	gobash "github.com/FourCoreLabs/go-bash"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 // TestPhase8RegistryExposed asserts that New surfaces a non-nil

@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	gobash "github.com/mark3labs/go-bash"
-	"github.com/mark3labs/go-bash/fs"
-	"github.com/mark3labs/go-bash/internal/cmpfixture"
-	"github.com/mark3labs/go-bash/sqlite"
+	gobash "github.com/FourCoreLabs/go-bash"
+	"github.com/FourCoreLabs/go-bash/fs"
+	"github.com/FourCoreLabs/go-bash/internal/cmpfixture"
+	"github.com/FourCoreLabs/go-bash/sqlite"
 )
 
 // TestComparisonFixtures runs every *.json file in

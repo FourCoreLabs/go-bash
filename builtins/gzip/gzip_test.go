@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	gz "github.com/mark3labs/go-bash/builtins/gzip"
-	"github.com/mark3labs/go-bash/builtins/gunzip"
-	"github.com/mark3labs/go-bash/builtins/zcat"
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/fs/memfs"
+	gz "github.com/FourCoreLabs/go-bash/builtins/gzip"
+	"github.com/FourCoreLabs/go-bash/builtins/gunzip"
+	"github.com/FourCoreLabs/go-bash/builtins/zcat"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/fs/memfs"
 )
 
 func newCtx(t *testing.T, stdin string) (*command.Context, *bytes.Buffer, *bytes.Buffer) {

@@ -3,8 +3,8 @@ package main
 import (
 	"os"
 
-	gbfs "github.com/mark3labs/go-bash/fs"
-	"github.com/mark3labs/go-bash/fs/memfs"
+	gbfs "github.com/FourCoreLabs/go-bash/fs"
+	"github.com/FourCoreLabs/go-bash/fs/memfs"
 )
 
 // newMemFS returns an empty in-memory FileSystem. Split out from

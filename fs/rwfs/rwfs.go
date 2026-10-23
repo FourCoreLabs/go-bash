@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	gobashfs "github.com/mark3labs/go-bash/fs"
-	"github.com/mark3labs/go-bash/fs/realfs"
+	gobashfs "github.com/FourCoreLabs/go-bash/fs"
+	"github.com/FourCoreLabs/go-bash/fs/realfs"
 )
 
 // Options configures an FS instance.

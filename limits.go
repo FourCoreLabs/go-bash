@@ -3,7 +3,7 @@ package gobash
 import (
 	"time"
 
-	"github.com/mark3labs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 // ExecutionLimits caps script behavior. A nil field falls through to the

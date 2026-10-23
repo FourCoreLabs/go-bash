@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	gobashfs "github.com/mark3labs/go-bash/fs"
+	gobashfs "github.com/FourCoreLabs/go-bash/fs"
 )
 
 // Mount associates a virtual mount point with a child FileSystem.

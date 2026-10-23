@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mark3labs/go-bash/builtins/echo"
-	"github.com/mark3labs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/builtins/echo"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 func run(t *testing.T, args ...string) (stdout, stderr string, code int) {

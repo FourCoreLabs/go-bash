@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mark3labs/go-bash/parser"
-	"github.com/mark3labs/go-bash/transform"
-	teeplugin "github.com/mark3labs/go-bash/transform/plugins/tee"
+	"github.com/FourCoreLabs/go-bash/parser"
+	"github.com/FourCoreLabs/go-bash/transform"
+	teeplugin "github.com/FourCoreLabs/go-bash/transform/plugins/tee"
 )
 
 func TestTeeWrapsSingleCommand(t *testing.T) {

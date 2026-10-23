@@ -6,7 +6,7 @@ import (
 
 	"mvdan.cc/sh/v3/syntax"
 
-	"github.com/mark3labs/go-bash/ast"
+	"github.com/FourCoreLabs/go-bash/ast"
 )
 
 // Parser-side hard limits enforced by Parse / ParseString. The values

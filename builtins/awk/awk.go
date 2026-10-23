@@ -19,8 +19,8 @@ import (
 	awkinterp "github.com/benhoyt/goawk/interp"
 	awkparser "github.com/benhoyt/goawk/parser"
 
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/internal/builtinutil"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/internal/builtinutil"
 )
 
 const usage = "awk [-F SEP] [-v VAR=VAL] [-f FILE | PROGRAM] [FILE...]"

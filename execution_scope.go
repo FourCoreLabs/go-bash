@@ -5,7 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/mark3labs/go-bash/internal/ringbuf"
+	"github.com/FourCoreLabs/go-bash/internal/ringbuf"
 )
 
 type executionScopeKey struct{}

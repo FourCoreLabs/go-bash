@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/mark3labs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 func TestLocalAssign(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/mark3labs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 // ignoreStatus follows just-bash's parser ordering: rules within one file

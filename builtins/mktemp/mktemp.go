@@ -11,8 +11,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/internal/builtinutil"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/internal/builtinutil"
 )
 
 const helpText = `mktemp - create a temporary file or directory and print its name
