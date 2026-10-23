@@ -5,8 +5,8 @@ package fgrep
 import (
 	"context"
 
-	"github.com/mark3labs/go-bash/builtins/grep"
-	"github.com/mark3labs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/builtins/grep"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 // New returns the fgrep command.

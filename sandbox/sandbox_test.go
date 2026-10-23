@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	gobash "github.com/mark3labs/go-bash"
-	"github.com/mark3labs/go-bash/sandbox"
+	gobash "github.com/FourCoreLabs/go-bash"
+	"github.com/FourCoreLabs/go-bash/sandbox"
 )
 
 func TestCreateAndRunEcho(t *testing.T) {

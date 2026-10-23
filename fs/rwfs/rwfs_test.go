@@ -3,9 +3,9 @@ package rwfs_test
 import (
 	"testing"
 
-	gobashfs "github.com/mark3labs/go-bash/fs"
-	"github.com/mark3labs/go-bash/fs/fstest"
-	"github.com/mark3labs/go-bash/fs/rwfs"
+	gobashfs "github.com/FourCoreLabs/go-bash/fs"
+	"github.com/FourCoreLabs/go-bash/fs/fstest"
+	"github.com/FourCoreLabs/go-bash/fs/rwfs"
 )
 
 func TestContract(t *testing.T) {

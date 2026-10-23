@@ -3,7 +3,7 @@ package ast_test
 import (
 	"testing"
 
-	"github.com/mark3labs/go-bash/ast"
+	"github.com/FourCoreLabs/go-bash/ast"
 )
 
 // TestNodeMarkers makes sure every exported AST node satisfies the

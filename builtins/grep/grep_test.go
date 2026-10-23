@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mark3labs/go-bash/builtins/egrep"
-	"github.com/mark3labs/go-bash/builtins/fgrep"
-	"github.com/mark3labs/go-bash/builtins/grep"
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/fs/memfs"
+	"github.com/FourCoreLabs/go-bash/builtins/egrep"
+	"github.com/FourCoreLabs/go-bash/builtins/fgrep"
+	"github.com/FourCoreLabs/go-bash/builtins/grep"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/fs/memfs"
 )
 
 func runWith(t *testing.T, stdin string, files map[string]string, args ...string) (string, string, int) {

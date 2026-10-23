@@ -6,8 +6,8 @@ import (
 	"crypto/sha256"
 	"hash"
 
-	"github.com/mark3labs/go-bash/builtins/md5sum"
-	"github.com/mark3labs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/builtins/md5sum"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 // New returns the sha256sum command.

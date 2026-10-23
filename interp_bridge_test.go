@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	gobash "github.com/mark3labs/go-bash"
-	gbfs "github.com/mark3labs/go-bash/fs"
+	gobash "github.com/FourCoreLabs/go-bash"
+	gbfs "github.com/FourCoreLabs/go-bash/fs"
 )
 
 // TestPhase5SmokeForLoop is the §5.7 acceptance: a vanilla for-loop

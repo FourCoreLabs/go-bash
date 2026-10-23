@@ -38,7 +38,7 @@ import (
 
 	"mvdan.cc/sh/v3/syntax"
 
-	"github.com/mark3labs/go-bash/transform"
+	"github.com/FourCoreLabs/go-bash/transform"
 )
 
 // Name is the metadata key the plugin uses.

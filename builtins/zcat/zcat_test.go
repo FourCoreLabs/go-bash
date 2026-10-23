@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mark3labs/go-bash/builtins/zcat"
-	"github.com/mark3labs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/builtins/zcat"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 func run(t *testing.T, stdin []byte, args ...string) (string, string, int) {

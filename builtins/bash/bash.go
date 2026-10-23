@@ -26,9 +26,9 @@ import (
 	"io"
 	"strings"
 
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/internal/builtinutil"
-	"github.com/mark3labs/go-bash/parser"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/internal/builtinutil"
+	"github.com/FourCoreLabs/go-bash/parser"
 )
 
 const usage = "bash [-c SCRIPT] [-e] [-x] [-n] [-s] [--] [SCRIPT [ARG...]]"

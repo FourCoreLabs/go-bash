@@ -9,4 +9,4 @@ package gobash
 // package's file listing — burying it inside bash.go (which already
 // has a long import block) made the registration mechanism harder to
 // trace during the Phase 10 build.
-import _ "github.com/mark3labs/go-bash/builtins"
+import _ "github.com/FourCoreLabs/go-bash/builtins"

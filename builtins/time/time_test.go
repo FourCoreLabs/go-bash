@@ -7,8 +7,8 @@ import (
 	"testing"
 	stdtime "time"
 
-	gbtime "github.com/mark3labs/go-bash/builtins/time"
-	"github.com/mark3labs/go-bash/command"
+	gbtime "github.com/FourCoreLabs/go-bash/builtins/time"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 func runCmd(t *testing.T, c *command.Context, args ...string) (string, string, int) {

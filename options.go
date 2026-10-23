@@ -3,10 +3,10 @@ package gobash
 import (
 	"io"
 
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/fs"
-	"github.com/mark3labs/go-bash/network"
-	"github.com/mark3labs/go-bash/transform"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/fs"
+	"github.com/FourCoreLabs/go-bash/network"
+	"github.com/FourCoreLabs/go-bash/transform"
 )
 
 // BashOptions configures a Bash environment at construction time.

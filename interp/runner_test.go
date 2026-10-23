@@ -11,10 +11,10 @@ import (
 	mvinterp "mvdan.cc/sh/v3/interp"
 	"mvdan.cc/sh/v3/syntax"
 
-	"github.com/mark3labs/go-bash/command"
-	gbfs "github.com/mark3labs/go-bash/fs"
-	"github.com/mark3labs/go-bash/fs/memfs"
-	bashinterp "github.com/mark3labs/go-bash/interp"
+	"github.com/FourCoreLabs/go-bash/command"
+	gbfs "github.com/FourCoreLabs/go-bash/fs"
+	"github.com/FourCoreLabs/go-bash/fs/memfs"
+	bashinterp "github.com/FourCoreLabs/go-bash/interp"
 )
 
 // parseFile parses src via mvdan/sh's syntax package — the runner only

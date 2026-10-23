@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	gbtar "github.com/mark3labs/go-bash/builtins/tar"
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/fs/memfs"
+	gbtar "github.com/FourCoreLabs/go-bash/builtins/tar"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/fs/memfs"
 )
 
 func newCtx(t *testing.T) (*command.Context, *bytes.Buffer, *bytes.Buffer) {

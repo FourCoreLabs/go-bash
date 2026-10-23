@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	gobash "github.com/mark3labs/go-bash"
-	gbfs "github.com/mark3labs/go-bash/fs"
-	"github.com/mark3labs/go-bash/fs/memfs"
+	gobash "github.com/FourCoreLabs/go-bash"
+	gbfs "github.com/FourCoreLabs/go-bash/fs"
+	"github.com/FourCoreLabs/go-bash/fs/memfs"
 )
 
 // TestBashFSDefault confirms that New() with zero options yields a

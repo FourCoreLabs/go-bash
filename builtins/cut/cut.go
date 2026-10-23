@@ -17,8 +17,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/internal/builtinutil"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/internal/builtinutil"
 )
 
 const usage = "cut (-b|-c|-f) LIST [-d DELIM] [-s] [--complement] [FILE...]"

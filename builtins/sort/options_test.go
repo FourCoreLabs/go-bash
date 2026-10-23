@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mark3labs/go-bash/builtins/sort"
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/fs/memfs"
+	"github.com/FourCoreLabs/go-bash/builtins/sort"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/fs/memfs"
 )
 
 func TestDictionaryAndMonth(t *testing.T) {

@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mark3labs/go-bash/builtins/hostname"
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/fs"
-	"github.com/mark3labs/go-bash/fs/memfs"
+	"github.com/FourCoreLabs/go-bash/builtins/hostname"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/fs"
+	"github.com/FourCoreLabs/go-bash/fs/memfs"
 )
 
 func run(t *testing.T, ctx *command.Context, args ...string) (string, string, int) {

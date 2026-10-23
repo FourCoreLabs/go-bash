@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	gobashfs "github.com/mark3labs/go-bash/fs"
+	gobashfs "github.com/FourCoreLabs/go-bash/fs"
 )
 
 // Factory builds a fresh FileSystem rooted at an isolated directory for

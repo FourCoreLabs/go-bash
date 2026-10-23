@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	_ "github.com/mark3labs/go-bash/builtins/echo"
-	"github.com/mark3labs/go-bash/builtins/find"
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/fs/memfs"
+	_ "github.com/FourCoreLabs/go-bash/builtins/echo"
+	"github.com/FourCoreLabs/go-bash/builtins/find"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/fs/memfs"
 )
 
 func newReg() *command.Registry {

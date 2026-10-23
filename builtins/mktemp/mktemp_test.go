@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	gobash "github.com/mark3labs/go-bash"
+	gobash "github.com/FourCoreLabs/go-bash"
 )
 
 // Behavioral cases ported from upstream mktemp.test.ts and mktemp-options.test.ts.

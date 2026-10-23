@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	gobashfs "github.com/mark3labs/go-bash/fs"
+	gobashfs "github.com/FourCoreLabs/go-bash/fs"
 )
 
 // ErrEscape is returned when a resolved path lies outside the sandbox

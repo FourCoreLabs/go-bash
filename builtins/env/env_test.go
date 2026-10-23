@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mark3labs/go-bash/builtins/env"
-	"github.com/mark3labs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/builtins/env"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 func runCmd(t *testing.T, c *command.Context, args ...string) (string, string, int) {

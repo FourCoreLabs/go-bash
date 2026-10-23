@@ -51,9 +51,9 @@ import (
 	"mvdan.cc/sh/v3/expand"
 	mvinterp "mvdan.cc/sh/v3/interp"
 
-	"github.com/mark3labs/go-bash/command"
-	gbfs "github.com/mark3labs/go-bash/fs"
-	"github.com/mark3labs/go-bash/network"
+	"github.com/FourCoreLabs/go-bash/command"
+	gbfs "github.com/FourCoreLabs/go-bash/fs"
+	"github.com/FourCoreLabs/go-bash/network"
 )
 
 // errNoRunner is returned by the cd back-channel when it is invoked

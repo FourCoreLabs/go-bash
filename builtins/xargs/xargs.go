@@ -16,8 +16,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/internal/builtinutil"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/internal/builtinutil"
 )
 
 const usage = "xargs [-0n PIRP] [-I REPL] [-P N] [-d DELIM] [-a FILE] [CMD [ARGS...]]"

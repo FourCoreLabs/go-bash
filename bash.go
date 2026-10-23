@@ -17,16 +17,16 @@ import (
 	"mvdan.cc/sh/v3/interp"
 	"mvdan.cc/sh/v3/syntax"
 
-	"github.com/mark3labs/go-bash/command"
-	gbfs "github.com/mark3labs/go-bash/fs"
-	"github.com/mark3labs/go-bash/fs/memfs"
-	gbalias "github.com/mark3labs/go-bash/internal/alias"
-	"github.com/mark3labs/go-bash/internal/ringbuf"
-	"github.com/mark3labs/go-bash/internal/runtimestate"
-	bashinterp "github.com/mark3labs/go-bash/interp"
-	"github.com/mark3labs/go-bash/network"
-	"github.com/mark3labs/go-bash/parser"
-	"github.com/mark3labs/go-bash/transform"
+	"github.com/FourCoreLabs/go-bash/command"
+	gbfs "github.com/FourCoreLabs/go-bash/fs"
+	"github.com/FourCoreLabs/go-bash/fs/memfs"
+	gbalias "github.com/FourCoreLabs/go-bash/internal/alias"
+	"github.com/FourCoreLabs/go-bash/internal/ringbuf"
+	"github.com/FourCoreLabs/go-bash/internal/runtimestate"
+	bashinterp "github.com/FourCoreLabs/go-bash/interp"
+	"github.com/FourCoreLabs/go-bash/network"
+	"github.com/FourCoreLabs/go-bash/parser"
+	"github.com/FourCoreLabs/go-bash/transform"
 )
 
 // Bash is a reusable shell environment. Concurrent Exec calls on a single
@@ -200,7 +200,7 @@ func New(opts BashOptions) (*Bash, error) {
 	}
 	// Phase 10 built-in registration. The default built-in slice is
 	// populated by side-effect imports of every builtins/<name>/
-	// package (the meta-package github.com/mark3labs/go-bash/builtins
+	// package (the meta-package github.com/FourCoreLabs/go-bash/builtins
 	// imports them all; gobash root pulls that in via blank import).
 	// We honor BashOptions.Commands as an allow-list (nil = all
 	// built-ins; non-nil = only the named subset) and skip any name

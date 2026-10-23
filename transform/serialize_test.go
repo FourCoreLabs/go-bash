@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mark3labs/go-bash/ast"
-	"github.com/mark3labs/go-bash/parser"
-	"github.com/mark3labs/go-bash/transform"
+	"github.com/FourCoreLabs/go-bash/ast"
+	"github.com/FourCoreLabs/go-bash/parser"
+	"github.com/FourCoreLabs/go-bash/transform"
 )
 
 // roundTripScripts is the curated representative set: each script must

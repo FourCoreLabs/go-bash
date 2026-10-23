@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"testing"
 
-	gobash "github.com/mark3labs/go-bash"
-	_ "github.com/mark3labs/go-bash/builtins/curl"
-	"github.com/mark3labs/go-bash/internal/cmpfixture"
-	"github.com/mark3labs/go-bash/network"
+	gobash "github.com/FourCoreLabs/go-bash"
+	_ "github.com/FourCoreLabs/go-bash/builtins/curl"
+	"github.com/FourCoreLabs/go-bash/internal/cmpfixture"
+	"github.com/FourCoreLabs/go-bash/network"
 )
 
 // fixtureDoer returns a canned 200 response for any request. It is

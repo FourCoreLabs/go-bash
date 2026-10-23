@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mark3labs/go-bash/builtins/whoami"
-	"github.com/mark3labs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/builtins/whoami"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 func TestWhoami(t *testing.T) {

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mark3labs/go-bash/builtins/cut"
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/fs/memfs"
+	"github.com/FourCoreLabs/go-bash/builtins/cut"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/fs/memfs"
 )
 
 func run(t *testing.T, mfs *memfs.FS, stdin string, args ...string) (string, string, int) {

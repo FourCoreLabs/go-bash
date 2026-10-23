@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	gobashfs "github.com/mark3labs/go-bash/fs"
-	"github.com/mark3labs/go-bash/fs/fstest"
-	"github.com/mark3labs/go-bash/fs/memfs"
+	gobashfs "github.com/FourCoreLabs/go-bash/fs"
+	"github.com/FourCoreLabs/go-bash/fs/fstest"
+	"github.com/FourCoreLabs/go-bash/fs/memfs"
 )
 
 func TestContract(t *testing.T) {

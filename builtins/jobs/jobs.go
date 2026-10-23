@@ -6,7 +6,7 @@ package jobs
 import (
 	"context"
 
-	"github.com/mark3labs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 // New returns the jobs command.

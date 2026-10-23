@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	gobash "github.com/mark3labs/go-bash"
-	"github.com/mark3labs/go-bash/fs"
-	"github.com/mark3labs/go-bash/sqlite"
+	gobash "github.com/FourCoreLabs/go-bash"
+	"github.com/FourCoreLabs/go-bash/fs"
+	"github.com/FourCoreLabs/go-bash/sqlite"
 )
 
 // newBash constructs a Bash with the real sqlite3 runtime registered.

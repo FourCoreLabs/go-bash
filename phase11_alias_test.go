@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	gobash "github.com/mark3labs/go-bash"
-	_ "github.com/mark3labs/go-bash/builtins"
+	gobash "github.com/FourCoreLabs/go-bash"
+	_ "github.com/FourCoreLabs/go-bash/builtins"
 )
 
 // TestAliasExpansionPhase11 verifies alias parse-time expansion fires

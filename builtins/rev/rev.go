@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mark3labs/go-bash/command"
-	"github.com/mark3labs/go-bash/internal/builtinutil"
+	"github.com/FourCoreLabs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/internal/builtinutil"
 )
 
 const usage = "rev [FILE...]"

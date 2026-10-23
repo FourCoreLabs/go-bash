@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	gobash "github.com/mark3labs/go-bash"
-	"github.com/mark3labs/go-bash/builtins/yes"
-	"github.com/mark3labs/go-bash/command"
+	gobash "github.com/FourCoreLabs/go-bash"
+	"github.com/FourCoreLabs/go-bash/builtins/yes"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 // Cases ported from upstream commands/yes/yes.test.ts.

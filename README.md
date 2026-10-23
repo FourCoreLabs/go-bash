@@ -26,7 +26,7 @@ model](#security-model).
 ## Quick Start
 
 ```bash
-go get github.com/mark3labs/go-bash@latest
+go get github.com/FourCoreLabs/go-bash@latest
 ```
 
 ```go
@@ -36,7 +36,7 @@ import (
     "context"
     "fmt"
 
-    gobash "github.com/mark3labs/go-bash"
+    gobash "github.com/FourCoreLabs/go-bash"
 )
 
 func main() {
@@ -65,8 +65,8 @@ import (
     "io"
     "strings"
 
-    gobash "github.com/mark3labs/go-bash"
-    "github.com/mark3labs/go-bash/command"
+    gobash "github.com/FourCoreLabs/go-bash"
+    "github.com/FourCoreLabs/go-bash/command"
 )
 
 hello := command.Define("hello", func(ctx context.Context, args []string, c *command.Context) command.Result {
@@ -262,7 +262,7 @@ Four filesystem implementations:
 **`memfs`** (default) — pure in-memory filesystem, no disk access:
 
 ```go
-import gobash "github.com/mark3labs/go-bash"
+import gobash "github.com/FourCoreLabs/go-bash"
 
 b, _ := gobash.New(gobash.BashOptions{
     Files: map[string]gobash.FileInit{
@@ -287,8 +287,8 @@ disk, writes stay in memory:
 
 ```go
 import (
-    gobash "github.com/mark3labs/go-bash"
-    "github.com/mark3labs/go-bash/fs/overlayfs"
+    gobash "github.com/FourCoreLabs/go-bash"
+    "github.com/FourCoreLabs/go-bash/fs/overlayfs"
 )
 
 overlay, _ := overlayfs.New(overlayfs.Options{Root: "/path/to/project"})
@@ -302,7 +302,7 @@ b.Exec(ctx, `echo "modified" > package.json`, gobash.ExecOptions{}) // in memory
 if you want the agent to be able to write to your disk:
 
 ```go
-import "github.com/mark3labs/go-bash/fs/rwfs"
+import "github.com/FourCoreLabs/go-bash/fs/rwfs"
 
 rw, _ := rwfs.New(rwfs.Options{Root: "/path/to/sandbox"})
 b, _ := gobash.New(gobash.BashOptions{FS: rw})
@@ -320,10 +320,10 @@ namespace:
 
 ```go
 import (
-    "github.com/mark3labs/go-bash/fs/memfs"
-    "github.com/mark3labs/go-bash/fs/mountfs"
-    "github.com/mark3labs/go-bash/fs/overlayfs"
-    "github.com/mark3labs/go-bash/fs/rwfs"
+    "github.com/FourCoreLabs/go-bash/fs/memfs"
+    "github.com/FourCoreLabs/go-bash/fs/mountfs"
+    "github.com/FourCoreLabs/go-bash/fs/overlayfs"
+    "github.com/FourCoreLabs/go-bash/fs/rwfs"
 )
 
 // Set up the base + mounts.
@@ -352,7 +352,7 @@ Network access is disabled by default. Enable it with the `Network`
 option:
 
 ```go
-import "github.com/mark3labs/go-bash/network"
+import "github.com/FourCoreLabs/go-bash/network"
 
 // Allow specific URLs with GET/HEAD only (safest).
 b, _ := gobash.New(gobash.BashOptions{
@@ -442,7 +442,7 @@ real runtime (pure-Go `modernc.org/sqlite`), import the `sqlite`
 subpackage and call `Register`:
 
 ```go
-import gbsqlite "github.com/mark3labs/go-bash/sqlite"
+import gbsqlite "github.com/FourCoreLabs/go-bash/sqlite"
 
 b, _ := gobash.New(gobash.BashOptions{})
 _ = gbsqlite.Register(b, gbsqlite.Options{Timeout: 5 * time.Second})
@@ -486,10 +486,10 @@ stdout/stderr) or extracting metadata before execution.
 
 ```go
 import (
-    gobash "github.com/mark3labs/go-bash"
-    "github.com/mark3labs/go-bash/transform"
-    "github.com/mark3labs/go-bash/transform/plugins/collector"
-    "github.com/mark3labs/go-bash/transform/plugins/tee"
+    gobash "github.com/FourCoreLabs/go-bash"
+    "github.com/FourCoreLabs/go-bash/transform"
+    "github.com/FourCoreLabs/go-bash/transform/plugins/collector"
+    "github.com/FourCoreLabs/go-bash/transform/plugins/tee"
 )
 
 // Standalone pipeline — output can be run by any shell.
@@ -519,7 +519,7 @@ Start with go-bash for development and testing, swap in a real
 sandbox when you need a full VM.
 
 ```go
-import "github.com/mark3labs/go-bash/sandbox"
+import "github.com/FourCoreLabs/go-bash/sandbox"
 
 sb, _ := sandbox.Create(ctx, sandbox.Options{Cwd: "/app"})
 
@@ -555,7 +555,7 @@ sb.Stop(ctx)
 Install globally for a sandboxed CLI:
 
 ```bash
-go install github.com/mark3labs/go-bash/cmd/gobash@latest
+go install github.com/FourCoreLabs/go-bash/cmd/gobash@latest
 
 # Execute inline script.
 gobash -c 'ls -la && cat package.json | head -5'

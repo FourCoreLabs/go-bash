@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mark3labs/go-bash/internal/cmpfixture"
+	"github.com/FourCoreLabs/go-bash/internal/cmpfixture"
 )
 
 // TestRunFixture_HappyPath constructs an in-memory fixture, runs it,

@@ -6,8 +6,8 @@ import (
 	"crypto/sha1" //nolint:gosec // sha1sum is a checksum tool, not a security primitive
 	"hash"
 
-	"github.com/mark3labs/go-bash/builtins/md5sum"
-	"github.com/mark3labs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/builtins/md5sum"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 // New returns the sha1sum command.

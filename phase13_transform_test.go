@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	gobash "github.com/mark3labs/go-bash"
-	"github.com/mark3labs/go-bash/transform"
-	"github.com/mark3labs/go-bash/transform/plugins/collector"
-	teeplugin "github.com/mark3labs/go-bash/transform/plugins/tee"
+	gobash "github.com/FourCoreLabs/go-bash"
+	"github.com/FourCoreLabs/go-bash/transform"
+	"github.com/FourCoreLabs/go-bash/transform/plugins/collector"
+	teeplugin "github.com/FourCoreLabs/go-bash/transform/plugins/tee"
 )
 
 // callRecorder is a Phase-13 test plugin that records every Transform

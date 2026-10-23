@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mark3labs/go-bash/builtins/falsecmd"
-	"github.com/mark3labs/go-bash/command"
+	"github.com/FourCoreLabs/go-bash/builtins/falsecmd"
+	"github.com/FourCoreLabs/go-bash/command"
 )
 
 func TestFalseExitsOne(t *testing.T) {

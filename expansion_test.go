@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	gobash "github.com/mark3labs/go-bash"
-	gbfs "github.com/mark3labs/go-bash/fs"
+	gobash "github.com/FourCoreLabs/go-bash"
+	gbfs "github.com/FourCoreLabs/go-bash/fs"
 )
 
 // helper: run a script with default options, return stdout/stderr/exit.
