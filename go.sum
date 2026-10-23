@@ -1,7 +1,7 @@
 github.com/BurntSushi/toml v1.6.0 h1:dRaEfpa2VI55EwlIW72hMRHdWouJeRF7TPYhI+AUQjk=
 github.com/BurntSushi/toml v1.6.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
-github.com/FourCoreLabs/sh v1.0.0 h1:kAgyRhexlKs+c7twEGsyEp2vASbX8SkcThHTmn87a/Y=
-github.com/FourCoreLabs/sh v1.0.0/go.mod h1:v4imOXkfsl/W1bojtFGmYFcaKWCVyotPtSKev4dhoAA=
+github.com/FourCoreLabs/sh v1.1.0 h1:pA4TfDwjqgKforejbMImqJbBprEnI03JAK3Z51PiF6E=
+github.com/FourCoreLabs/sh v1.1.0/go.mod h1:v4imOXkfsl/W1bojtFGmYFcaKWCVyotPtSKev4dhoAA=
 github.com/JohannesKaufmann/dom v0.3.1 h1:J16l9JAHWgkFPR3VIPbQ1gvS0cWab6laK1q7PFL3qh0=
 github.com/JohannesKaufmann/dom v0.3.1/go.mod h1:BZPkf8ZeYrBgABjwJn9iiKt8aiCtkxpHkevms+Yp2DE=
 github.com/JohannesKaufmann/html-to-markdown/v2 v2.5.2 h1:XFJZFWESIWlUEHHjzBuv8RvrtCWnSGlimEX17ysSDb8=

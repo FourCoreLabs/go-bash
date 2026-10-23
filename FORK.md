@@ -4,7 +4,7 @@ A fork of [mark3labs/go-bash](https://github.com/mark3labs/go-bash) (MIT, see
 `LICENSE`) for sandboxed agent shells.
 
 ```
-go get github.com/FourCoreLabs/go-bash@v1.0.0
+go get github.com/FourCoreLabs/go-bash@latest
 ```
 
 The module path is `github.com/FourCoreLabs/go-bash`, and it builds on
@@ -22,7 +22,14 @@ Upstream mark3labs/go-bash **`a055aa7`** (v0.1.0), imported without history.
 | Import mark3labs/go-bash a055aa7 | Upstream tree, verbatim |
 | FourCore fixes for embedding go-bash in agent sandboxes | The fixes listed below |
 | Declare module github.com/FourCoreLabs/go-bash | Module path and import rewrite |
-| Build on github.com/FourCoreLabs/sh | `mvdan.cc/sh/v3` replaced by `github.com/FourCoreLabs/sh` v1.0.0 |
+| Build on github.com/FourCoreLabs/sh | `mvdan.cc/sh/v3` replaced by `github.com/FourCoreLabs/sh` |
+
+## Releases
+
+| Version | sh | Contents |
+|---|---|---|
+| v1.1.0 | v1.1.0 | Globbing works over the virtual filesystem on Windows. Includes go.sum for sh. |
+| v1.0.0 | v1.0.0 | First release on FourCoreLabs/sh. Its go.sum lacks sh's entries, so building go-bash on its own at v1.0.0 needs `go mod tidy`; importers are unaffected. Use v1.1.0. |
 
 ## The fixes
 
@@ -53,12 +60,8 @@ Upstream mark3labs/go-bash **`a055aa7`** (v0.1.0), imported without history.
 
 ## Known limitations on Windows
 
-These failures exist upstream too, and the move to sh v3.14 didn't cause them:
+These failures exist upstream too:
 
-* **Globbing.** The mvdan/sh expander joins glob directories with `filepath`,
-  so on Windows `*.txt` under `/work` resolves to `/work/\work` and matches
-  nothing. `VFSPaths` covers the interpreter but not yet the expander. Linux and
-  macOS are unaffected.
 * **Process substitution** (`<(...)`) is unsupported on Windows upstream.
 * Some `awk`, `rwfs` and `sandbox` tests assume POSIX line endings, symlink
   privileges or permissions.
