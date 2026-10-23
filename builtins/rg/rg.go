@@ -6,6 +6,7 @@
 package rg
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/base64"
@@ -83,12 +84,30 @@ type opts struct {
 	globs                                                                    []string
 	hidden                                                                   bool
 	asJSON                                                                   bool
+	// heading selects ripgrep's grouped layout (filename on its own
+	// line, then `line:text`, then a blank separator). Real ripgrep
+	// only uses it when stdout is a terminal; there is never a
+	// terminal here, so the default is the pipe-friendly
+	// `file:line:text` form and --heading opts back in.
+	heading    bool
+	headingSet bool
+	// withFilename / noFilename mirror rg's -H / -I. When neither is
+	// given the prefix is shown only if a directory or several paths
+	// are searched.
+	withFilename    bool
+	withFilenameSet bool
+	noFilename      bool
 }
 
 // New returns the rg command.
 func New() command.Command { return command.Define("rg", run) }
 
 func run(_ context.Context, args []string, c *command.Context) command.Result {
+	// Line numbers are on only with -n. Real ripgrep enables them by
+	// default when stdout is a terminal and suppresses them otherwise;
+	// there is no terminal here, so the piped behavior is the default
+	// and -n opts in. (Verified against ripgrep: `rg pat f`, `rg pat d/`
+	// and `... | rg pat` all print no line numbers when piped.)
 	o := opts{smartCase: true, maxDepth: 256}
 	args = normalizeArgs(args)
 	var paths []string
@@ -200,6 +219,14 @@ func run(_ context.Context, args []string, c *command.Context) command.Result {
 			}
 			i++
 			o.globs = append(o.globs, args[i])
+		case a == "--heading":
+			o.heading, o.headingSet = true, true
+		case a == "--no-heading":
+			o.heading, o.headingSet = false, true
+		case a == "-H", a == "--with-filename":
+			o.withFilename, o.withFilenameSet = true, true
+		case a == "-I", a == "--no-filename":
+			o.noFilename, o.withFilenameSet = true, true
 		case a == "--hidden":
 			o.hidden = true
 		case a == "--no-ignore":
@@ -224,8 +251,31 @@ run:
 		o.patterns = append(o.patterns, paths[0])
 		paths = paths[1:]
 	}
+	// No explicit path. Real ripgrep reads stdin when stdin is not a
+	// terminal and recurses from the cwd when it is. There is no
+	// terminal here, so peek instead: if something was piped in, search
+	// that; otherwise fall back to recursing from the cwd, which is
+	// what `rg pattern` on its own is expected to do. A `-f -` pattern
+	// file owns stdin, so it is never also searched.
+	stdinOnly := false
+	var stdinData []byte
 	if len(paths) == 0 {
-		paths = []string{"."}
+		patternsFromStdin := false
+		for _, name := range o.patternFiles {
+			if name == "-" {
+				patternsFromStdin = true
+			}
+		}
+		if c.Stdin != nil && !patternsFromStdin {
+			br := bufio.NewReader(c.Stdin)
+			if _, err := br.Peek(1); err == nil {
+				stdinData, _ = io.ReadAll(br)
+				stdinOnly = true
+			}
+		}
+		if !stdinOnly {
+			paths = []string{"."}
+		}
 	}
 
 	for _, name := range o.patternFiles {
@@ -299,17 +349,35 @@ run:
 	}
 
 	var files []string
-	for _, p := range paths {
-		collect(c, p, p, &o, &files)
-	}
-	sort.Strings(files)
-	// ripgrep prefixes paths when searching a directory (or multiple inputs),
-	// but suppresses the prefix when a single explicit file is searched.
-	showPath := len(paths) != 1
-	if len(paths) == 1 {
-		if fi, err := c.FS.Stat(builtinutil.ResolvePath(c.Cwd, paths[0])); err == nil {
-			showPath = fi.IsDir()
+	// searchedDir records whether any argument named a directory. It,
+	// not the resulting file count, drives the filename prefix: ripgrep
+	// labels every line when it was asked to search a tree, even if the
+	// tree happens to hold a single file.
+	searchedDir := false
+	if stdinOnly {
+		files = []string{"-"}
+	} else {
+		for _, p := range paths {
+			if fi, err := c.FS.Stat(builtinutil.ResolvePath(c.Cwd, p)); err == nil && fi.IsDir() {
+				searchedDir = true
+			}
+			collect(c, p, p, &o, &files)
 		}
+		sort.Strings(files)
+	}
+
+	// Filename prefix default: on when a directory was searched or more
+	// than one path was given, off for a single explicit file and for
+	// stdin. -H / -I override.
+	if !o.withFilenameSet {
+		o.withFilename = searchedDir || len(paths) > 1
+	}
+	if o.noFilename {
+		o.withFilename = false
+	}
+	// Grouped headings only make sense when filenames are shown at all.
+	if !o.headingSet {
+		o.heading = false
 	}
 
 	anyMatch := false
@@ -349,7 +417,7 @@ run:
 		if skip {
 			continue
 		}
-		if searchFile(c, &o, re, f, showPath) {
+		if searchFile(c, &o, re, f, stdinData) {
 			anyMatch = true
 			if o.quiet {
 				break
@@ -417,13 +485,24 @@ func walk(c *command.Context, abs, display string, o *opts, depth int, active ma
 	}
 }
 
-func searchFile(c *command.Context, o *opts, re *regexp.Regexp, name string, showPath bool) bool {
-	abs := builtinutil.ResolvePath(c.Cwd, name)
-	data, err := c.FS.ReadFile(abs)
-	if err != nil {
-		return false
+func searchFile(c *command.Context, o *opts, re *regexp.Regexp, name string, stdin []byte) bool {
+	var data []byte
+	if name == "-" {
+		data = stdin
+	} else {
+		abs := builtinutil.ResolvePath(c.Cwd, name)
+		var err error
+		data, err = c.FS.ReadFile(abs)
+		if err != nil {
+			return false
+		}
 	}
 	lines := splitLines(data)
+
+	display := name
+	if name == "-" {
+		display = "<stdin>"
+	}
 
 	matchLines := make([]int, 0)
 	matchSpans := make(map[int][][2]int)
@@ -456,13 +535,13 @@ func searchFile(c *command.Context, o *opts, re *regexp.Regexp, name string, sho
 
 	if o.filesOnly {
 		if len(matchLines) > 0 {
-			_, _ = fmt.Fprintf(c.Stdout, "%s\n", name)
+			_, _ = fmt.Fprintf(c.Stdout, "%s\n", display)
 		}
 		return len(matchLines) > 0
 	}
 	if o.countOnly {
-		if showPath {
-			_, _ = fmt.Fprintf(c.Stdout, "%s:%d\n", name, len(matchLines))
+		if o.withFilename {
+			_, _ = fmt.Fprintf(c.Stdout, "%s:%d\n", display, len(matchLines))
 		} else {
 			_, _ = fmt.Fprintf(c.Stdout, "%d\n", len(matchLines))
 		}
@@ -470,6 +549,17 @@ func searchFile(c *command.Context, o *opts, re *regexp.Regexp, name string, sho
 	}
 	if len(matchLines) == 0 {
 		return false
+	}
+
+	// linePrefix is what precedes each emitted line. In the grouped
+	// (--heading) layout the filename is printed once above the block;
+	// otherwise it rides on every line, which is what ripgrep does
+	// whenever stdout is not a terminal.
+	linePrefix := ""
+	if o.heading {
+		_, _ = fmt.Fprintf(c.Stdout, "%s\n", display)
+	} else if o.withFilename {
+		linePrefix = display + ":"
 	}
 
 	// Determine printed-line set with before/after context.
@@ -502,10 +592,10 @@ func searchFile(c *command.Context, o *opts, re *regexp.Regexp, name string, sho
 				if o.replacement != nil {
 					part = re.ReplaceAllString(part, *o.replacement)
 				}
-				if o.lineNumber {
-					_, _ = fmt.Fprintf(c.Stdout, "%d:%s\n", k+1, part)
+				if o.lineNumber && !o.noLineNumber {
+					_, _ = fmt.Fprintf(c.Stdout, "%s%d:%s\n", linePrefix, k+1, part)
 				} else {
-					_, _ = fmt.Fprintln(c.Stdout, part)
+					_, _ = fmt.Fprintf(c.Stdout, "%s%s\n", linePrefix, part)
 				}
 			}
 			continue
@@ -517,18 +607,18 @@ func searchFile(c *command.Context, o *opts, re *regexp.Regexp, name string, sho
 		if isMatch {
 			sep = ":"
 		}
-		if showPath {
-			if !o.noLineNumber {
-				_, _ = fmt.Fprintf(c.Stdout, "%s:%d%s%s\n", name, k+1, sep, text)
-			} else {
-				_, _ = fmt.Fprintf(c.Stdout, "%s:%s\n", name, text)
-			}
-		} else if o.lineNumber && !o.noLineNumber {
-			_, _ = fmt.Fprintf(c.Stdout, "%d%s%s\n", k+1, sep, text)
+		if o.lineNumber && !o.noLineNumber {
+			_, _ = fmt.Fprintf(c.Stdout, "%s%d%s%s\n", linePrefix, k+1, sep, text)
 		} else {
-			_, _ = fmt.Fprintf(c.Stdout, "%s\n", text)
+			_, _ = fmt.Fprintf(c.Stdout, "%s%s\n", linePrefix, text)
 		}
 		prev = k
+	}
+	// The blank separator between files belongs to the grouped layout
+	// only; in the flat layout it would be spurious output that breaks
+	// `rg ... | wc -l`.
+	if o.heading {
+		_, _ = io.WriteString(c.Stdout, "\n")
 	}
 	return true
 }

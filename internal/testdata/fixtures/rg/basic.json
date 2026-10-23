@@ -1,7 +1,7 @@
 {
   "script": "mkdir -p /work && printf 'foo\\nbar\\nfoobar\\n' > /work/a.txt && rg foo /work",
   "expected": {
-    "stdout": "/work/a.txt:1:foo\n/work/a.txt:3:foobar\n",
+    "stdout": "/work/a.txt:foo\n/work/a.txt:foobar\n",
     "stderr": "",
     "exitCode": 0
   }

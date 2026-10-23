@@ -60,6 +60,10 @@ type Bash struct {
 	trace    TraceFunc
 	procInfo ProcessInfo
 
+	// shellOptions are applied to the interpreter at construction time in
+	// `set` syntax (see BashOptions.ShellOptions).
+	shellOptions []string
+
 	// fs is the virtual filesystem backing every script-side file
 	// operation. Phase 3 wires this up via BashOptions.{FS, Files};
 	// the open/stat/readdir handlers passed to mvdan/sh during Exec
@@ -149,16 +153,17 @@ func New(opts BashOptions) (*Bash, error) {
 		return nil, err
 	}
 	b := &Bash{
-		env:     cloneEnv(opts.Env),
-		cwd:     opts.Cwd,
-		limits:  limits,
-		sleep:   opts.Sleep,
-		logger:  opts.Logger,
-		trace:   opts.Trace,
-		aliases: runtimestate.NewAliasTable(),
-		history: runtimestate.NewHistoryRing(0),
-		shopt:   runtimestate.NewShoptTable(),
-		plugins: append([]transform.Plugin(nil), opts.TransformPlugins...),
+		env:          cloneEnv(opts.Env),
+		cwd:          opts.Cwd,
+		limits:       limits,
+		shellOptions: opts.ShellOptions,
+		sleep:        opts.Sleep,
+		logger:       opts.Logger,
+		trace:        opts.Trace,
+		aliases:      runtimestate.NewAliasTable(),
+		history:      runtimestate.NewHistoryRing(0),
+		shopt:        runtimestate.NewShoptTable(),
+		plugins:      append([]transform.Plugin(nil), opts.TransformPlugins...),
 	}
 	if opts.ProcessInfo != nil {
 		b.procInfo = *opts.ProcessInfo
@@ -177,11 +182,12 @@ func New(opts BashOptions) (*Bash, error) {
 		}
 		b.fs = m
 	}
-	if len(opts.Files) > 0 {
-		if err := seedFiles(b.fs, opts.Files); err != nil {
-			return nil, err
-		}
-	}
+	// /dev/null must discard writes and read as empty for every
+	// consumer — shell redirections and built-ins alike. This is
+	// independent of the default layout below: the wrapper matches on
+	// path, so /dev/null works even when the caller manages its own
+	// layout and no /dev directory exists.
+	b.fs = gbfs.WithNullDevice(b.fs)
 	// Command registry. CustomCommands register first so name
 	// collisions with later (Phase 10) built-in registrations resolve
 	// in favor of the custom entry — the built-in bootstrap will skip
@@ -237,6 +243,11 @@ func New(opts BashOptions) (*Bash, error) {
 	// non-fatal: a read-only or restricted FileSystem may reject some
 	// of the writes, but New should still succeed so the caller can
 	// inspect / repair the FS post-construction.
+	if len(opts.Files) > 0 {
+		if err := seedFiles(b.fs, opts.Files); err != nil {
+			return nil, err
+		}
+	}
 	useDefaultLayout := opts.Cwd == "" && len(opts.Files) == 0
 	if useDefaultLayout {
 		_ = applyDefaultLayout(b.fs, b.procInfo, b.registry)
@@ -272,7 +283,7 @@ func New(opts BashOptions) (*Bash, error) {
 
 // FS returns the virtual filesystem this Bash is bound to. Useful for
 // host-side inspection or post-Exec assertions in tests.
-func (b *Bash) FS() gbfs.FileSystem { return b.fs }
+func (b *Bash) FS() gbfs.FileSystem { return gbfs.UnwrapNullDevice(b.fs) }
 
 // Registry returns the command dispatch registry. The returned
 // pointer is the live registry consulted by every Exec call; mutating
@@ -566,6 +577,26 @@ func (b *Bash) execLocked(ctx context.Context, script string, opts ExecOptions) 
 				})
 			}
 		}
+		// mvdan/sh's own `cd` and `pwd` are unusable inside the sandbox:
+		// cd gates on unix.Access() against the HOST filesystem (see
+		// builtins/cd), and pwd reads the $PWD variable that only that
+		// broken cd maintains. Both are shadowed by gobash built-ins
+		// that work off the VFS, but mvdan/sh dispatches its builtins
+		// before the exec handler ever sees the name — so redirect them
+		// here, by path, which routes through lookupCommand's /bin/
+		// basename fallback into the registry.
+		//
+		// A user-defined shell function of the same name still wins:
+		// r.Funcs is consulted after the CallHandler, and rewriting the
+		// word would hide the function.
+		if runnerRef != nil {
+			if _, isFunc := runnerRef.Funcs[args[0]]; !isFunc {
+				switch args[0] {
+				case "cd", "pwd":
+					args = append([]string{"/bin/" + args[0]}, args[1:]...)
+				}
+			}
+		}
 		cmd := cmdCount.Add(1)
 		if cmd > int64(limits.MaxCommandCount) {
 			return nil, trip(&ExecutionLimitError{
@@ -611,6 +642,7 @@ func (b *Bash) execLocked(ctx context.Context, script string, opts ExecOptions) 
 
 	runner, err := bashinterp.BuildRunner(execCtx, bashinterp.Config{
 		Env:             envSlice(env),
+		ShellOptions:    b.shellOptions,
 		Cwd:             cwd,
 		Stdin:           stdin,
 		Stdout:          stdoutW,
@@ -645,6 +677,10 @@ func (b *Bash) execLocked(ctx context.Context, script string, opts ExecOptions) 
 		result.Stderr = errBuf.String()
 	}
 	result.Env = exportedEnv(runner)
+	// The working directory is observable state: record it before any of the
+	// error paths below can return, so a host can carry `cd` across
+	// executions even when the script failed.
+	result.Cwd = runner.Dir
 	if pluginMetadata != nil {
 		result.Metadata = pluginMetadata
 	}

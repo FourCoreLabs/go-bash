@@ -32,11 +32,63 @@ import (
 // rather than letting runtime allocation balloon. (Citation kept
 // approximate — the just-bash repo is read-only spec source and we do
 // not vendor it; see DECISIONS.md.)
+// heredocClass classifies every here-document body in a parsed file.
+//
+// A heredoc body is not a word: bash never brace-expands one, whatever the
+// delimiter looks like. Counting literal braces inside a JSON or YAML body
+// made every multi-key object look like `{a,b}` and rejected perfectly
+// ordinary authoring payloads with MaxBraceExpansionResults.
+//
+// A body whose delimiter is quoted (<<'EOF', <<"EOF", <<\EOF) is literal in
+// full, so parameter, command and arithmetic expansion cannot come from it
+// either. An unquoted body does expand, so it keeps its substitution budget.
+type heredocClass struct {
+	bodies  map[*syntax.Word]bool
+	literal map[*syntax.Word]bool
+}
+
+func classifyHeredocs(file *syntax.File) heredocClass {
+	out := heredocClass{bodies: make(map[*syntax.Word]bool), literal: make(map[*syntax.Word]bool)}
+	syntax.Walk(file, func(n syntax.Node) bool {
+		rd, ok := n.(*syntax.Redirect)
+		if !ok || rd.Hdoc == nil {
+			return true
+		}
+		out.bodies[rd.Hdoc] = true
+		if delimiterQuoted(rd.Word) {
+			out.literal[rd.Hdoc] = true
+		}
+		return true
+	})
+	return out
+}
+
+// delimiterQuoted reports whether a heredoc delimiter suppresses expansion:
+// quoting any part of it — 'EOF', "EOF", \EOF — makes the body literal, which
+// is the same test the parser applies when it builds the stop word.
+func delimiterQuoted(w *syntax.Word) bool {
+	if w == nil {
+		return false
+	}
+	for _, p := range w.Parts {
+		switch x := p.(type) {
+		case *syntax.SglQuoted, *syntax.DblQuoted:
+			return true
+		case *syntax.Lit:
+			if strings.ContainsRune(x.Value, '\\') {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func enforceExpansionCaps(file *syntax.File, limits ResolvedLimits) error {
-	if e := checkBraceCap(file, limits.MaxBraceExpansionResults); e != nil {
+	heredocs := classifyHeredocs(file)
+	if e := checkBraceCap(file, limits.MaxBraceExpansionResults, heredocs); e != nil {
 		return e
 	}
-	if e := checkSubstDepth(file, limits.MaxSubstitutionDepth); e != nil {
+	if e := checkSubstDepth(file, limits.MaxSubstitutionDepth, heredocs); e != nil {
 		return e
 	}
 	if e := checkArrayElems(file, limits.MaxArrayElements); e != nil {
@@ -72,7 +124,7 @@ func mayHaveBraces(w *syntax.Word) bool {
 	return false
 }
 
-func checkBraceCap(file *syntax.File, limit int) *ExecutionLimitError {
+func checkBraceCap(file *syntax.File, limit int, heredocs heredocClass) *ExecutionLimitError {
 	if limit <= 0 {
 		return nil
 	}
@@ -83,6 +135,9 @@ func checkBraceCap(file *syntax.File, limit int) *ExecutionLimitError {
 		}
 		w, ok := n.(*syntax.Word)
 		if !ok {
+			return true
+		}
+		if heredocs.bodies[w] {
 			return true
 		}
 		if !mayHaveBraces(w) {
@@ -223,7 +278,7 @@ func (e errString) Error() string { return string(e) }
 // does not count toward depth — only command/process substitution
 // recursion does, which matches the spec's "MaxSubstitutionDepth" intent.
 // Runtime-only nesting via eval is bounded separately by MaxCallDepth.
-func checkSubstDepth(file *syntax.File, limit int) *ExecutionLimitError {
+func checkSubstDepth(file *syntax.File, limit int, heredocs heredocClass) *ExecutionLimitError {
 	if limit <= 0 {
 		return nil
 	}
@@ -240,10 +295,14 @@ func checkSubstDepth(file *syntax.File, limit int) *ExecutionLimitError {
 			if child == n {
 				return true
 			}
-			switch child.(type) {
+			switch x := child.(type) {
 			case *syntax.CmdSubst, *syntax.ProcSubst:
 				walk(child, depth+1)
 				return false
+			case *syntax.Redirect:
+				if x.Hdoc != nil && heredocs.literal[x.Hdoc] {
+					return false
+				}
 			}
 			return true
 		})

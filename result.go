@@ -16,4 +16,8 @@ type BashExecResult struct {
 	ExecResult
 	Env      map[string]string
 	Metadata map[string]any
+
+	// Cwd is the interpreter's working directory once the script finished,
+	// so a host can carry `cd` across executions.
+	Cwd string
 }

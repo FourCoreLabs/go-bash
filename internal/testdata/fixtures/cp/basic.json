@@ -1,7 +1,7 @@
 {
   "script": "echo hi > /tmp/a; cp /tmp/a /tmp/b; ls /tmp",
   "expected": {
-    "stdout": "a  b\n",
+    "stdout": "a\nb\n",
     "stderr": "",
     "exitCode": 0
   }

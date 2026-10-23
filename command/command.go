@@ -89,6 +89,13 @@ type Context struct {
 	// path resolution should join against this value.
 	Cwd string
 
+	// SetCwd changes the interpreter's working directory for the rest
+	// of the script. It is the back-channel `cd` needs: mvdan/sh owns
+	// the runner's Dir, and a dispatched command otherwise has no way
+	// to move it. Nil when the host runs a command outside a live
+	// interpreter, so callers must nil-check.
+	SetCwd func(dir string) error
+
 	// Env is the effective environment at dispatch time. Commands may
 	// mutate this map; the runtime decides whether to persist the
 	// mutation

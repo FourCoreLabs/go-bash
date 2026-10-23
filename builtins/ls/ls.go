@@ -16,7 +16,7 @@ import (
 	"github.com/mark3labs/go-bash/internal/builtinutil"
 )
 
-const usage = "ls [-laAdFhiR1tSrLnp] [--color[=WHEN]] [PATH...]"
+const usage = "ls [-laAdFhiR1CxmtSrLnp] [--color[=WHEN]] [PATH...]"
 const helpText = `Usage: ls [OPTION]... [FILE]...
 List information about the FILEs (the current directory by default).
 
@@ -28,7 +28,9 @@ List information about the FILEs (the current directory by default).
   -h            with -l, print human-readable sizes
   -i            print the index number of each file
   -R            list subdirectories recursively
-  -1            list one file per line
+  -1            list one file per line (the default: stdout is not a TTY)
+  -C, -x        list entries in columns on a single line
+  -m            list entries separated by ", "
   -t            sort by modification time, newest first
   -S            sort by file size, largest first
   -r            reverse order while sorting
@@ -41,6 +43,10 @@ type opts struct {
 	long, all, almostAll, dirOnly, classify, human, inode bool
 	recursive, oneLine, byTime, bySize, reverse           bool
 	deref, numeric, slashDir                              bool
+	// columns forces the multi-column layout (-C/-x) and commas the
+	// comma-separated one (-m). Neither is the default: with no TTY,
+	// real ls falls back to one-entry-per-line, and so do we.
+	columns, commas bool
 }
 
 // New returns the ls command.
@@ -74,6 +80,10 @@ func run(_ context.Context, args []string, c *command.Context) command.Result {
 			o.recursive = true
 		case a == "-1":
 			o.oneLine = true
+		case a == "-C", a == "-x":
+			o.columns = true
+		case a == "-m":
+			o.commas = true
 		case a == "-t":
 			o.byTime = true
 		case a == "-S":
@@ -146,6 +156,10 @@ func bundleLsOpts(a string, o *opts) bool {
 			o.recursive = true
 		case '1':
 			o.oneLine = true
+		case 'C', 'x':
+			o.columns = true
+		case 'm':
+			o.commas = true
 		case 't':
 			o.byTime = true
 		case 'S':
@@ -263,22 +277,39 @@ func writeEntries(c *command.Context, items []entry, o *opts) {
 		}
 		return
 	}
-	if o.oneLine {
-		for _, e := range items {
-			writeShortLine(c.Stdout, e, o)
+	if o.commas {
+		for i, e := range items {
+			if i > 0 {
+				_, _ = io.WriteString(c.Stdout, ", ")
+			}
+			_, _ = io.WriteString(c.Stdout, decorate(e, o))
+		}
+		if len(items) > 0 {
+			_, _ = io.WriteString(c.Stdout, "\n")
 		}
 		return
 	}
-	// Default: space-separated on one line, then newline. Real ls
-	// uses column layout; we keep it simple to match a CLI sandbox.
-	for i, e := range items {
-		if i > 0 {
-			_, _ = io.WriteString(c.Stdout, "  ")
+	if o.columns {
+		// Explicit -C/-x: space-separated on one line. Real ls computes a
+		// column grid from the terminal width; there is no terminal here,
+		// so a single row is the honest approximation.
+		for i, e := range items {
+			if i > 0 {
+				_, _ = io.WriteString(c.Stdout, "  ")
+			}
+			_, _ = io.WriteString(c.Stdout, decorate(e, o))
 		}
-		_, _ = io.WriteString(c.Stdout, decorate(e, o))
+		if len(items) > 0 {
+			_, _ = io.WriteString(c.Stdout, "\n")
+		}
+		return
 	}
-	if len(items) > 0 {
-		_, _ = io.WriteString(c.Stdout, "\n")
+	// Default. Stdout is never a terminal in this sandbox, and real ls
+	// switches to one-entry-per-line whenever it is not writing to a
+	// TTY -- which is what keeps `ls | wc -l` and `for f in $(ls)`
+	// honest. Multi-column output is opt-in via -C/-x.
+	for _, e := range items {
+		writeShortLine(c.Stdout, e, o)
 	}
 }
 

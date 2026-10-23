@@ -266,6 +266,15 @@ func key(s string, o *opts) string {
 	if end == 0 || end > len(fields) {
 		end = len(fields)
 	}
+	/*
+		Fork patch: a key range whose end is before its start (-k 3,1) names no
+		field at all. GNU sort collapses it to an empty key; slicing
+		fields[start:end] with end < start panics and takes the whole process
+		down with it when the builtin runs inside a pipeline stage.
+	*/
+	if end < start {
+		end = start
+	}
 	joiner := sep
 	if joiner == "" {
 		joiner = " "

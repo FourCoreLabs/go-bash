@@ -1,7 +1,7 @@
 {
   "script": "mkdir /a /b /c; ls /",
   "expected": {
-    "stdout": "a  b  bin  c  dev  etc  home  proc  tmp  usr\n",
+    "stdout": "a\nb\nbin\nc\ndev\netc\nhome\nproc\ntmp\nusr\n",
     "stderr": "",
     "exitCode": 0
   }
