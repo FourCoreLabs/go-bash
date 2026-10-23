@@ -5,7 +5,7 @@
 //
 // Serialize prefers the Origin back-reference parsed scripts carry:
 // when present, it hands the original *syntax.File to
-// mvdan.cc/sh/v3/syntax.Printer for byte-faithful round-trip. This is
+// github.com/FourCoreLabs/sh/syntax.Printer for byte-faithful round-trip. This is
 // the path the Phase 4 round-trip acceptance test exercises.
 //
 // For plugin-synthesized scripts (Origin == nil, arriving in Phase 13
@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"strings"
 
-	"mvdan.cc/sh/v3/syntax"
+	"github.com/FourCoreLabs/sh/syntax"
 
 	"github.com/FourCoreLabs/go-bash/ast"
 )

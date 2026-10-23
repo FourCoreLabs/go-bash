@@ -12,7 +12,7 @@ require (
 	github.com/ulikunitz/xz v0.5.15
 	golang.org/x/sys v0.45.0
 	modernc.org/sqlite v1.52.0
-	mvdan.cc/sh/v3 v3.13.1
+	github.com/FourCoreLabs/sh v1.0.0
 )
 
 require (

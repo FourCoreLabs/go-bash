@@ -1,4 +1,4 @@
-// Package interp builds and configures the mvdan.cc/sh/v3/interp runner
+// Package interp builds and configures the github.com/FourCoreLabs/sh/interp runner
 // with the gobash customization hooks. It is the bridge between the
 // public gobash.Bash surface and mvdan/sh's tree-walking interpreter:
 //
@@ -48,8 +48,8 @@ import (
 	"path"
 	"strings"
 
-	"mvdan.cc/sh/v3/expand"
-	mvinterp "mvdan.cc/sh/v3/interp"
+	"github.com/FourCoreLabs/sh/expand"
+	mvinterp "github.com/FourCoreLabs/sh/interp"
 
 	"github.com/FourCoreLabs/go-bash/command"
 	gbfs "github.com/FourCoreLabs/go-bash/fs"

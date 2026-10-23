@@ -14,7 +14,7 @@ package alias
 import (
 	"strings"
 
-	"mvdan.cc/sh/v3/syntax"
+	"github.com/FourCoreLabs/sh/syntax"
 )
 
 // Expand walks file and rewrites every *syntax.CallExpr whose first

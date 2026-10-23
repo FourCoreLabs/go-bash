@@ -10,7 +10,7 @@
 //
 // Only the public skeleton is implemented: Bash, BashOptions, ExecOptions,
 // BashExecResult, the limits/error types, and a stub Exec that delegates
-// to mvdan.cc/sh/v3. The virtual filesystem (Phase 3), command registry
+// to github.com/FourCoreLabs/sh. The virtual filesystem (Phase 3), command registry
 // (Phase 8), and network layer (Phase 9) are not yet wired. Until the
 // virtual filesystem lands, file operations in scripts hit the host disk
 // through mvdan/sh's default handlers.

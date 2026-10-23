@@ -36,7 +36,7 @@ import (
 	"strings"
 	"time"
 
-	"mvdan.cc/sh/v3/syntax"
+	"github.com/FourCoreLabs/sh/syntax"
 
 	"github.com/FourCoreLabs/go-bash/transform"
 )

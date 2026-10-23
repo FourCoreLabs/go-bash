@@ -3,7 +3,7 @@ package gobash
 import (
 	"strconv"
 
-	"mvdan.cc/sh/v3/syntax"
+	"github.com/FourCoreLabs/sh/syntax"
 )
 
 // rewriteProcInfo rewrites `$$`, `$PPID`, and `$BASHPID` parameter

@@ -14,8 +14,8 @@ import (
 	"sync/atomic"
 	"unicode"
 
-	"mvdan.cc/sh/v3/interp"
-	"mvdan.cc/sh/v3/syntax"
+	"github.com/FourCoreLabs/sh/interp"
+	"github.com/FourCoreLabs/sh/syntax"
 
 	"github.com/FourCoreLabs/go-bash/command"
 	gbfs "github.com/FourCoreLabs/go-bash/fs"
@@ -790,7 +790,7 @@ func countMvdanCallFrames() int {
 	return depth
 }
 
-// isMvdanCallFrame matches the qualified name of mvdan.cc/sh/v3/interp's
+// isMvdanCallFrame matches the qualified name of github.com/FourCoreLabs/sh/interp's
 // Runner.call method. We compare via HasSuffix because the package path
 // prefix is stable but the leading import comments may vary across Go
 // toolchain versions. Kept private so the matcher can be tightened

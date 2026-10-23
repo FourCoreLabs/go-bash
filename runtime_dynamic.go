@@ -20,8 +20,8 @@ import (
 
 	gbfs "github.com/FourCoreLabs/go-bash/fs"
 	"github.com/FourCoreLabs/go-bash/parser"
-	"mvdan.cc/sh/v3/interp"
-	"mvdan.cc/sh/v3/syntax"
+	"github.com/FourCoreLabs/sh/interp"
+	"github.com/FourCoreLabs/sh/syntax"
 )
 
 type dynamicScripts struct {

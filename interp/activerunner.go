@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"unsafe"
 
-	mvinterp "mvdan.cc/sh/v3/interp"
+	mvinterp "github.com/FourCoreLabs/sh/interp"
 )
 
 // activeRunner returns the *interp.Runner that is currently executing,

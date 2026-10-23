@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"mvdan.cc/sh/v3/syntax"
+	"github.com/FourCoreLabs/sh/syntax"
 
 	gobash "github.com/FourCoreLabs/go-bash"
 	gbfs "github.com/FourCoreLabs/go-bash/fs"

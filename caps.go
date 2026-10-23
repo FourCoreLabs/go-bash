@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"mvdan.cc/sh/v3/syntax"
+	"github.com/FourCoreLabs/sh/syntax"
 )
 
 // enforceExpansionCaps applies the spec expansion-side runtime caps

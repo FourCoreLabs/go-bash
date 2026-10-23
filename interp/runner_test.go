@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	mvinterp "mvdan.cc/sh/v3/interp"
-	"mvdan.cc/sh/v3/syntax"
+	mvinterp "github.com/FourCoreLabs/sh/interp"
+	"github.com/FourCoreLabs/sh/syntax"
 
 	"github.com/FourCoreLabs/go-bash/command"
 	gbfs "github.com/FourCoreLabs/go-bash/fs"

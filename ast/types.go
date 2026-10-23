@@ -14,14 +14,14 @@
 // # Origin pointer
 //
 // Script carries an Origin field pointing back at the
-// mvdan.cc/sh/v3/syntax.File the parser produced. transform.Serialize
+// github.com/FourCoreLabs/sh/syntax.File the parser produced. transform.Serialize
 // uses Origin to byte-faithfully render the script back to bash source.
 // Origin is nil for plugin-synthesized scripts (Phase 13+); the inverse
 // translator in the transform package handles that case via best-effort
 // reconstruction with default positions.
 package ast
 
-import "mvdan.cc/sh/v3/syntax"
+import "github.com/FourCoreLabs/sh/syntax"
 
 // Node is the closed type implemented by every AST node. The nodeMarker
 // method is unexported to prevent external implementations.
@@ -32,7 +32,7 @@ type Script struct {
 	Statements []*Statement
 	Line       int
 
-	// Origin is the back-reference to the original mvdan.cc/sh/v3
+	// Origin is the back-reference to the original github.com/FourCoreLabs/sh
 	// *syntax.File the parser walked. transform.Serialize uses it for
 	// byte-identical round-trips. Nil for plugin-synthesized scripts.
 	Origin *syntax.File
@@ -47,7 +47,7 @@ func (*Script) nodeMarker() {}
 // in-source separators between pipelines on the same line; the Go port
 // reserves Operators for "&&" and "||" and represents ";"-separated
 // commands as distinct top-level Statements. This preserves the natural
-// 1:1 mapping with mvdan.cc/sh/v3's *syntax.Stmt and is a deliberate
+// 1:1 mapping with github.com/FourCoreLabs/sh's *syntax.Stmt and is a deliberate
 // resolved decision.
 type Statement struct {
 	Pipelines  []*Pipeline

@@ -1,6 +1,6 @@
 package transform
 
-import "mvdan.cc/sh/v3/syntax"
+import "github.com/FourCoreLabs/sh/syntax"
 
 // WordLit returns the literal text of w when every part of the word is
 // statically known (plain literals, single-quoted, or double-quoted
