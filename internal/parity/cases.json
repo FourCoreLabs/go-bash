@@ -1,0 +1,320 @@
+[
+  {
+    "id": "streams-and-status",
+    "steps": [
+      {
+        "script": "printf 'out\\n'; printf 'err\\n' >&2; exit 7"
+      }
+    ]
+  },
+  {
+    "id": "pipeline-text",
+    "files": {
+      "/work/input": "pear\napple\npear\n"
+    },
+    "steps": [
+      {
+        "script": "cat input | sort | uniq -c > counts; cat counts"
+      }
+    ]
+  },
+  {
+    "id": "filesystem-lifecycle",
+    "files": {
+      "/work/original": "seed\n",
+      "/work/delete": "gone\n"
+    },
+    "steps": [
+      {
+        "script": "mkdir -p nested; cp original nested/copy; printf 'append\\n' >> nested/copy; mv original renamed; rm delete; ln -s nested/copy link"
+      },
+      {
+        "script": "cat link; printf 'new\\n' > created; rm renamed"
+      }
+    ]
+  },
+  {
+    "id": "shell-expansions",
+    "steps": [
+      {
+        "script": "f() { printf '<%s>\\n' \"$1\"; }; for x in a b c; do f \"$x\"; done; printf '%s\\n' \"$(printf hello)\"; echo {1..3}"
+      }
+    ]
+  },
+  {
+    "id": "stdin-and-cwd",
+    "files": {
+      "/work/sub/data": "inside\n"
+    },
+    "steps": [
+      {
+        "script": "cat > supplied; pwd; cat data supplied",
+        "cwd": "/work/sub",
+        "stdin": "from stdin\n"
+      },
+      {
+        "script": "pwd; cat sub/supplied"
+      }
+    ]
+  },
+  {
+    "id": "multi-exec-env",
+    "env": {
+      "BASE": "constructor"
+    },
+    "steps": [
+      {
+        "script": "export BASE=changed; export ADDED=local; printf '%s:%s\\n' \"$BASE\" \"$ADDED\""
+      },
+      {
+        "script": "printf '%s:%s\\n' \"$BASE\" \"${ADDED-unset}\""
+      },
+      {
+        "script": "printf '%s:%s\\n' \"$BASE\" \"$CALL\"; export BASE=transient",
+        "env": {
+          "CALL": "override"
+        }
+      },
+      {
+        "script": "printf '%s:%s\\n' \"$BASE\" \"${CALL-unset}\""
+      }
+    ]
+  },
+  {
+    "id": "replace-env-isolation",
+    "env": {
+      "BASE": "constructor"
+    },
+    "steps": [
+      {
+        "script": "printf '%s:%s\\n' \"${BASE-unset}\" \"$ONLY\"; export LEAK=bad",
+        "replaceEnv": true,
+        "env": {
+          "ONLY": "replacement"
+        }
+      },
+      {
+        "script": "printf '%s:%s:%s\\n' \"$BASE\" \"${ONLY-unset}\" \"${LEAK-unset}\""
+      }
+    ]
+  },
+  {
+    "id": "literal-args",
+    "steps": [
+      {
+        "script": "printf '<%s>\\n'",
+        "args": [
+          "a b",
+          "$(echo injected)",
+          "*.txt",
+          "semi;colon"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "source-eval-current-shell",
+    "files": {
+      "/work/setup.sh": "VALUE=from-source\nexport EXPORTED=yes\n"
+    },
+    "steps": [
+      {
+        "script": "source ./setup.sh; eval 'VALUE=from-eval'; printf '%s:%s\\n' \"$VALUE\" \"$EXPORTED\""
+      },
+      {
+        "script": "printf '%s\\n' \"${EXPORTED-unset}\""
+      }
+    ]
+  },
+  {
+    "id": "sed-inplace",
+    "files": {
+      "/work/config": "old=value\n"
+    },
+    "steps": [
+      {
+        "script": "sed -i.bak 's/old/new/' config; cat config"
+      }
+    ]
+  },
+  {
+    "id": "sort-output",
+    "files": {
+      "/work/input": "z\na\nm\n"
+    },
+    "steps": [
+      {
+        "script": "sort -o sorted input; cat sorted"
+      }
+    ]
+  },
+  {
+    "id": "rg-no-match",
+    "files": {
+      "/work/input": "alpha\nbeta\n"
+    },
+    "steps": [
+      {
+        "script": "rg absent input"
+      }
+    ]
+  },
+  {
+    "id": "jq-transform",
+    "files": {
+      "/work/items.json": "{\"items\":[{\"name\":\"a\",\"n\":2},{\"name\":\"b\",\"n\":1}]}\n"
+    },
+    "steps": [
+      {
+        "script": "jq -r '.items | sort_by(.n) | .[].name' items.json > names; cat names"
+      }
+    ]
+  },
+  {
+    "id": "yq-json-input",
+    "files": {
+      "/work/data.json": "{\"name\":\"example\"}\n"
+    },
+    "steps": [
+      {
+        "script": "yq -p json -o json '.name' data.json"
+      }
+    ]
+  },
+  {
+    "id": "raw-script-options",
+    "steps": [
+      {
+        "script": "    printf \"first\\n\"\n    printf \"second\\n\"",
+        "rawScript": false
+      },
+      {
+        "script": "    printf \"raw\\n\"",
+        "rawScript": true
+      }
+    ]
+  },
+  {
+    "id": "uniq-count-and-options",
+    "files": {
+      "/work/lines": "A 1\\nA 1\\nB 2\\n"
+    },
+    "steps": [
+      {
+        "script": "uniq -c lines; uniq -i lines; uniq -u lines"
+      }
+    ]
+  },
+  {
+    "id": "yes-bounded-pipeline",
+    "steps": [
+      {
+        "script": "yes ok | head -n 3"
+      }
+    ]
+  },
+  {
+    "id": "xan-options",
+    "files": {
+      "/work/table.csv": "name,n\\na,2\\nb,1\\n"
+    },
+    "steps": [
+      {
+        "script": "xan count table.csv"
+      }
+    ]
+  },
+  {
+    "id": "rg-smartcase-gitignore",
+    "files": {
+      "/work/README.md": "Alpha alpha ALPHA\n",
+      "/work/.gitignore": "ignored.txt\n",
+      "/work/ignored.txt": "Alpha\n",
+      "/work/visible.txt": "Alpha\n"
+    },
+    "steps": [
+      {
+        "script": "rg -S alpha README.md; rg -S Alpha README.md; rg --no-ignore Alpha"
+      }
+    ]
+  },
+  {
+    "id": "xan-command-coverage",
+    "files": {
+      "/work/table.csv": "name,n,group\na,2,x\nb,1,y\nc,3,x\n"
+    },
+    "steps": [
+      {
+        "script": "xan count table.csv; xan headers table.csv; xan select name table.csv; xan sort n table.csv"
+      }
+    ]
+  },
+  {
+    "id": "yq-output-inplace-slurp-null-exit-join",
+    "files": {
+      "/work/a.json": "{\"n\":1}\n",
+      "/work/b.json": "{\"n\":2}\n",
+      "/work/data.json": "{\"n\":1}\n"
+    },
+    "steps": [
+      {
+        "script": "yq -p json -o json '.n' a.json"
+      },
+      {
+        "script": "yq -p json -o json -s '.' a.json b.json"
+      },
+      {
+        "script": "yq -p json -o json -n '{n: 1}'"
+      },
+      {
+        "script": "yq -p json -o json -e '.n' a.json"
+      },
+      {
+        "script": "yq -p json -o json -j '.' a.json"
+      },
+      {
+        "script": "yq -p json -o json -i '.n = 9' data.json; cat data.json"
+      }
+    ]
+  },
+  {
+    "id": "source-eval-path-state",
+    "files": {
+      "/work/state.sh": "PATH=/work/tools:$PATH\nSTATE=loaded\n",
+      "/work/tools/hello": "#!/bin/sh\nprintf 'tool\n'\n"
+    },
+    "steps": [
+      {
+        "script": "source state.sh; eval 'STATE=updated'; printf '%s\\n' \"$STATE\""
+      },
+      {
+        "script": "printf '%s\\n' \"$STATE\"; command -v hello"
+      }
+    ]
+  },
+  {
+    "id": "args-positional-substitution",
+    "steps": [
+      {
+        "script": "printf '<%s>\\n' \"$@\"; printf 'first=<%s> second=<%s>\\n' \"$1\" \"$2\"",
+        "args": [
+          "a b",
+          "$(echo injected)",
+          "*.txt",
+          "semi;colon"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "binary-file-roundtrip",
+    "files": {
+      "/work/encoded": "AAH/fw==\n"
+    },
+    "steps": [
+      {
+        "script": "base64 -d encoded > binary; base64 binary"
+      }
+    ]
+  }
+]
