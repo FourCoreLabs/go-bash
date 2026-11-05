@@ -2,7 +2,11 @@
 //
 // Wraps github.com/itchyny/gojq. Honored flags: --raw-input/-R,
 // --raw-output/-r, --slurp/-s, --compact/-c, --null-input/-n,
-// --arg KEY VAL, --argjson KEY JSON.
+// --from-file/-f, --arg KEY VAL, --argjson KEY JSON.
+//
+// As in jq, --from-file is a switch rather than an option with a value: the
+// first positional argument names the file holding the filter, and the
+// remaining positional arguments are input files.
 //
 // MaxJqIterations is honored via a tick counter wrapped around the
 // gojq.Code.Run iterator.
@@ -31,6 +35,7 @@ Apply FILTER (a jq program) to each JSON input.
   -R, --raw-input       read raw strings instead of JSON
   -s, --slurp           read inputs into one array
   -n, --null-input      use null as the single input
+  -f, --from-file FILE  read FILTER from FILE; every other argument is input
       --arg KEY VAL     bind $KEY to the string VAL
       --argjson KEY VAL bind $KEY to the JSON value VAL
       --help            show this help`
@@ -44,6 +49,7 @@ func run(ctx context.Context, args []string, c *command.Context) command.Result 
 	rawInput := false
 	slurp := false
 	nullInput := false
+	fromFile := false
 	var argNames []string
 	var argVals []any
 	var filter string
@@ -67,6 +73,8 @@ func run(ctx context.Context, args []string, c *command.Context) command.Result 
 			slurp = true
 		case a == "-n", a == "--null-input":
 			nullInput = true
+		case a == "-f", a == "--from-file":
+			fromFile = true
 		case a == "--arg":
 			if i+2 >= len(args) {
 				return builtinutil.UsageError(c.Stderr, usage)
@@ -113,6 +121,8 @@ func run(ctx context.Context, args []string, c *command.Context) command.Result 
 					slurp = true
 				case 'n':
 					nullInput = true
+				case 'f':
+					fromFile = true
 				default:
 					ok = false
 				}
@@ -132,6 +142,14 @@ func run(ctx context.Context, args []string, c *command.Context) command.Result 
 run:
 	if !filterSet {
 		return builtinutil.UsageError(c.Stderr, usage)
+	}
+	if fromFile {
+		// The positional that would have been the filter names its file.
+		data, err := readAll(c, []string{filter})
+		if err != nil {
+			return builtinutil.Errorf(c.Stderr, "jq", 2, "%s: %v", filter, err)
+		}
+		filter = string(data)
 	}
 
 	q, err := gojq.Parse(filter)
