@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 	"strings"
 	"testing"
 
@@ -272,4 +273,51 @@ func TestRegistryDispatchExitCode(t *testing.T) {
 	}
 	check("fail", 7)
 	check("weird", 1)
+}
+
+// failingCloseFS commits nothing: every writable file it opens fails on Close,
+// the way a remote or conditional store fails when the write is committed.
+type failingCloseFS struct{ gbfs.FileSystem }
+
+type failingCloseFile struct{ gbfs.File }
+
+func (f failingCloseFile) Close() error {
+	_ = f.File.Close()
+	return errors.New("commit rejected")
+}
+
+func (fs failingCloseFS) OpenFile(name string, flag int, perm os.FileMode) (gbfs.File, error) {
+	f, err := fs.FileSystem.OpenFile(name, flag, perm)
+	if err != nil || flag&(os.O_WRONLY|os.O_RDWR|os.O_APPEND|os.O_CREATE|os.O_TRUNC) == 0 {
+		return f, err
+	}
+	return failingCloseFile{File: f}, nil
+}
+
+// TestRedirectReportsAFailedClose pins that a redirect whose file fails to
+// commit on Close says so on stderr instead of vanishing silently.
+func TestRedirectReportsAFailedClose(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	r, err := bashinterp.BuildRunner(context.Background(), bashinterp.Config{
+		Cwd:    "/",
+		Stdin:  strings.NewReader(""),
+		Stdout: &stdout,
+		Stderr: &stderr,
+		FS:     failingCloseFS{memfs.New()},
+	})
+	if err != nil {
+		t.Fatalf("BuildRunner: %v", err)
+	}
+	if err := r.Run(context.Background(), parseFile(t, "for i in 1 2; do echo x >> /out.txt; done\necho y > /other.txt\n")); err != nil {
+		var status mvinterp.ExitStatus
+		if !errors.As(err, &status) {
+			t.Fatalf("Run: %v", err)
+		}
+	}
+	got := stderr.String()
+	for _, want := range []string{"bash: /out.txt: write error: commit rejected", "bash: /other.txt: write error: commit rejected"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("stderr = %q, want %q", got, want)
+		}
+	}
 }

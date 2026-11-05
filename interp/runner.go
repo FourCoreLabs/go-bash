@@ -453,8 +453,44 @@ func openHandler(fs gbfs.FileSystem) mvinterp.OpenHandlerFunc {
 		if err != nil {
 			return nil, ensurePathError(err, "open", path)
 		}
+		if flag&(os.O_WRONLY|os.O_RDWR|os.O_APPEND|os.O_CREATE|os.O_TRUNC) != 0 {
+			if stderr := handlerStderr(ctx); stderr != nil {
+				return &closeReportingFile{File: f, path: path, stderr: stderr}, nil
+			}
+		}
 		return f, nil
 	}
+}
+
+// handlerStderr is the interpreter's stderr for the redirect being opened, or
+// nil outside a handler context.
+func handlerStderr(ctx context.Context) (w io.Writer) {
+	defer func() {
+		if recover() != nil {
+			w = nil
+		}
+	}()
+	return mvinterp.HandlerCtx(ctx).Stderr
+}
+
+// closeReportingFile reports a failed Close on a redirect target. The
+// interpreter closes redirect files after the command and ignores the error,
+// and a virtual filesystem may commit its write only on Close (a remote or
+// conditional store), so without this a failed write vanishes: the script
+// exits 0 and the file is missing or stale. The error is written to the
+// command's stderr the way bash reports a failed write.
+type closeReportingFile struct {
+	gbfs.File
+	path   string
+	stderr io.Writer
+}
+
+func (f *closeReportingFile) Close() error {
+	err := f.File.Close()
+	if err != nil {
+		fmt.Fprintf(f.stderr, "bash: %s: write error: %v\n", f.path, err)
+	}
+	return err
 }
 
 func statHandler(fs gbfs.FileSystem) mvinterp.StatHandlerFunc {
